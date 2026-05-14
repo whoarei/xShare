@@ -1,0 +1,352 @@
+<script setup>
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import DeviceList from './components/DeviceList.vue'
+import FileSelector from './components/FileSelector.vue'
+import TransferProgress from './components/TransferProgress.vue'
+
+const serverRunning = ref(false)
+const serverPort = ref(9527)
+const serverDir = ref('./received')
+const serverOutput = ref([])
+
+const peers = ref([])
+const discovering = ref(false)
+
+const selectedPaths = ref([])
+const selectedPeer = ref(null)
+const sending = ref(false)
+
+const transferActive = ref(false)
+const currentTask = ref(null)
+const progressItems = ref([])
+
+const logs = ref([])
+
+let unlisteners = []
+
+function addLog(msg, type = 'info') {
+  logs.value.unshift({ time: new Date().toLocaleTimeString(), msg, type })
+  if (logs.value.length > 200) logs.value.pop()
+}
+
+async function startServer() {
+  try {
+    const result = await invoke('start_server', {
+      port: serverPort.value,
+      dir: serverDir.value
+    })
+    serverRunning.value = true
+    addLog('Server started: ' + result, 'success')
+  } catch (e) {
+    addLog('Failed to start server: ' + e, 'error')
+  }
+}
+
+async function stopServer() {
+  try {
+    const result = await invoke('stop_server')
+    serverRunning.value = false
+    addLog('Server stopped: ' + result, 'success')
+  } catch (e) {
+    addLog('Failed to stop server: ' + e, 'error')
+  }
+}
+
+async function discoverPeers() {
+  discovering.value = true
+  try {
+    const output = await invoke('discover_peers', { timeout: 5 })
+    const data = JSON.parse(output)
+    if (data.type === 'peers') {
+      peers.value = data.peers || []
+      addLog(`Found ${peers.value.length} peer(s)`, 'success')
+    }
+  } catch (e) {
+    addLog('Discovery failed: ' + e, 'error')
+  } finally {
+    discovering.value = false
+  }
+}
+
+async function browseFiles() {
+  try {
+    const path = await invoke('open_file_dialog')
+    if (path && !selectedPaths.value.includes(path)) {
+      selectedPaths.value.push(path)
+    }
+  } catch (e) {
+    addLog('File dialog error: ' + e, 'error')
+  }
+}
+
+async function browseDir() {
+  try {
+    const path = await invoke('open_dir_dialog')
+    if (path && !selectedPaths.value.includes(path)) {
+      selectedPaths.value.push(path)
+    }
+  } catch (e) {
+    addLog('Directory dialog error: ' + e, 'error')
+  }
+}
+
+function removePath(index) {
+  selectedPaths.value.splice(index, 1)
+}
+
+async function sendFiles() {
+  if (!selectedPeer.value || selectedPaths.value.length === 0) return
+  sending.value = true
+  transferActive.value = true
+  currentTask.value = null
+  progressItems.value = []
+
+  try {
+    for (const dir of selectedPaths.value) {
+      await invoke('send_files', {
+        peer: selectedPeer.value,
+        dir: dir
+      })
+    }
+  } catch (e) {
+    addLog('Send error: ' + e, 'error')
+    sending.value = false
+    transferActive.value = false
+  }
+}
+
+function handleProgress(payload) {
+  try {
+    const data = JSON.parse(payload)
+    switch (data.type) {
+      case 'task':
+        currentTask.value = data
+        addLog(`Receiving task: ${data.id} (${data.item_count} items, ${formatSize(data.total_size)})`)
+        break
+      case 'progress':
+        progressItems.value.push(data)
+        break
+      case 'complete':
+        addLog('Transfer complete!', 'success')
+        transferActive.value = false
+        sending.value = false
+        break
+      case 'error':
+        addLog('Transfer error: ' + data.msg, 'error')
+        transferActive.value = false
+        sending.value = false
+        break
+    }
+  } catch {}
+}
+
+function handleServerEvent(payload) {
+  try {
+    const data = JSON.parse(payload)
+    if (data.type === 'ready') {
+      serverRunning.value = true
+      addLog(`Server ready on port ${data.port}, dir: ${data.dir}`, 'success')
+    } else if (data.type === 'task') {
+      currentTask.value = data
+      transferActive.value = true
+    } else if (data.type === 'progress') {
+      progressItems.value.push(data)
+    } else if (data.type === 'complete') {
+      addLog('Receive complete!', 'success')
+      transferActive.value = false
+    } else if (data.type === 'error') {
+      addLog('Server error: ' + data.msg, 'error')
+    } else {
+      serverOutput.value.unshift(payload)
+      if (serverOutput.value.length > 100) serverOutput.value.pop()
+    }
+  } catch {
+    serverOutput.value.unshift(payload)
+    if (serverOutput.value.length > 100) serverOutput.value.pop()
+  }
+}
+
+function handleServerError(payload) {
+  addLog('Server error: ' + payload, 'error')
+}
+
+function handleTransferError(payload) {
+  addLog('Transfer error: ' + payload, 'error')
+}
+
+function handleTransferComplete(payload) {
+  addLog(`Transfer finished with code: ${payload.code || 0}`)
+  sending.value = false
+  transferActive.value = false
+}
+
+function formatSize(bytes) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let i = 0
+  let size = bytes
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
+    i++
+  }
+  return `${size.toFixed(1)} ${units[i]}`
+}
+
+const canSend = computed(() => selectedPeer.value && selectedPaths.value.length > 0 && !sending.value)
+
+onMounted(async () => {
+  unlisteners.push(
+    await listen('transfer-progress', (e) => handleProgress(e.payload)),
+    await listen('transfer-error', (e) => handleTransferError(e.payload)),
+    await listen('transfer-complete', (e) => handleTransferComplete(e.payload)),
+    await listen('server-event', (e) => handleServerEvent(e.payload)),
+    await listen('server-error', (e) => handleServerError(e.payload)),
+    await listen('server-terminated', () => {
+      serverRunning.value = false
+      addLog('Server process terminated', 'warn')
+    })
+  )
+})
+
+onUnmounted(() => {
+  unlisteners.forEach(fn => fn())
+})
+</script>
+
+<template>
+  <div class="flex flex-col h-screen bg-gray-50">
+    <!-- Header -->
+    <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shadow-sm">
+      <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <span class="text-white font-bold text-sm">xS</span>
+          </div>
+          <h1 class="text-xl font-bold text-gray-800">xShare</h1>
+        </div>
+        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">v1.0</span>
+      </div>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <span
+            class="w-2 h-2 rounded-full"
+            :class="serverRunning ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'"
+          ></span>
+          <span class="text-sm text-gray-600">
+            {{ serverRunning ? `Listening :${serverPort}` : 'Server stopped' }}
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden">
+      <!-- Left Panel -->
+      <aside class="w-80 flex flex-col border-r border-gray-200 bg-white">
+        <!-- Server Controls -->
+        <div class="p-4 border-b border-gray-100">
+          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Server</h2>
+          <div class="space-y-2">
+            <div class="flex gap-2">
+              <input
+                v-model.number="serverPort"
+                type="number"
+                class="input w-24"
+                placeholder="Port"
+                :disabled="serverRunning"
+              />
+              <input
+                v-model="serverDir"
+                type="text"
+                class="input flex-1"
+                placeholder="Receive directory"
+                :disabled="serverRunning"
+              />
+            </div>
+            <div class="flex gap-2">
+              <button
+                v-if="!serverRunning"
+                @click="startServer"
+                class="btn-primary flex-1 text-sm"
+              >
+                Start Server
+              </button>
+              <button
+                v-else
+                @click="stopServer"
+                class="btn-danger flex-1 text-sm"
+              >
+                Stop Server
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Device List -->
+        <DeviceList
+          v-model:selectedPeer="selectedPeer"
+          :peers="peers"
+          :discovering="discovering"
+          @discover="discoverPeers"
+        />
+
+        <!-- Logs -->
+        <div class="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Log</h2>
+          <div class="flex-1 overflow-y-auto scrollbar-thin bg-gray-50 rounded-lg p-2 text-xs font-mono">
+            <div
+              v-for="(log, i) in logs"
+              :key="i"
+              class="py-0.5"
+              :class="{
+                'text-emerald-600': log.type === 'success',
+                'text-red-600': log.type === 'error',
+                'text-yellow-600': log.type === 'warn',
+                'text-gray-500': log.type === 'info'
+              }"
+            >
+              <span class="text-gray-400">{{ log.time }}</span>
+              {{ log.msg }}
+            </div>
+            <div v-if="logs.length === 0" class="text-gray-400 italic">No logs yet</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Panel -->
+      <main class="flex-1 flex flex-col overflow-hidden">
+        <!-- File Selector & Send -->
+        <FileSelector
+          v-model:selectedPaths="selectedPaths"
+          :selectedPeer="selectedPeer"
+          :peers="peers"
+          :sending="sending"
+          :canSend="canSend"
+          @browse-files="browseFiles"
+          @browse-dir="browseDir"
+          @remove-path="removePath"
+          @send="sendFiles"
+        />
+
+        <!-- Transfer Progress -->
+        <TransferProgress
+          :active="transferActive"
+          :task="currentTask"
+          :items="progressItems"
+        />
+
+        <!-- Server Output (receive side) -->
+        <div v-if="serverRunning && serverOutput.length > 0" class="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+          <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Server Events</h2>
+          <div class="flex-1 overflow-y-auto scrollbar-thin bg-gray-50 rounded-lg p-2 text-xs font-mono">
+            <div v-for="(line, i) in serverOutput" :key="i" class="py-0.5 text-gray-600">
+              {{ line }}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+</template>
