@@ -306,6 +306,12 @@ sudo apt install libwebkit2gtk-4.1-dev
 
 确保两台设备在同一局域网，防火墙放行 UDP 5353 端口。
 
+### 怎么生成图标
+
+```shell
+npm run tauri icon ./src-tauri/icon.png
+```
+
 ## License
 
 MIT
