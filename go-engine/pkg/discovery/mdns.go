@@ -62,6 +62,8 @@ func Discover(timeout time.Duration) ([]Peer, error) {
 	}
 
 	if err := mdns.Query(params); err != nil {
+		close(entriesCh)
+		<-done
 		return nil, fmt.Errorf("mdns query: %w", err)
 	}
 
