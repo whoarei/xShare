@@ -1,0 +1,114 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # ── Test ──
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - name: Go unit tests
+        run: cd go-engine && go test ./... -v
+
+      - name: Go vet
+        run: cd go-engine && go vet ./...
+
+      - name: Frontend typecheck / build
+        run: npm ci && npm run build
+
+  # ── Build Go sidecar binaries for all platforms ──
+  build-go:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64, target: x86_64-unknown-linux-gnu,       ext: "" }
+          - { goos: windows, goarch: amd64, target: x86_64-pc-windows-msvc,          ext: ".exe" }
+          - { goos: darwin,  goarch: amd64, target: x86_64-apple-darwin,             ext: "" }
+          - { goos: darwin,  goarch: arm64, target: aarch64-apple-darwin,            ext: "" }
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+
+      - name: Build Go sidecar
+        run: |
+          cd go-engine
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
+            go build -o ../sidecar/go-engine-${{ matrix.target }}${{ matrix.ext }} .
+          cd ..
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: sidecar/
+
+  # ── Build Tauri desktop app (per-platform matrix) ──
+  build-tauri:
+    needs: build-go
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,       platform: linux   }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,          platform: windows }
+          - { os: macos-latest,   target: x86_64-apple-darwin,             platform: macos   }
+          - { os: macos-latest,   target: aarch64-apple-darwin,            platform: macos   }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+
+      - uses: actions/setup-go@v5
+        with: { go-version: "1.22" }
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt update
+          sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev \
+            libjavascriptcoregtk-4.1-dev libdbus-1-dev
+
+      - name: Download Go sidecar
+        uses: actions/download-artifact@v4
+        with:
+          name: sidecar-${{ matrix.target }}
+          path: src-tauri/binaries/
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Build Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "xShare v__VERSION__"
+          releaseBody: "See CHANGELOG for details."
+          releaseDraft: true
+          args: --target ${{ matrix.target }}

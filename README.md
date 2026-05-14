@@ -204,47 +204,44 @@ ls -lh src-tauri/target/release/bundle/*/ 2>/dev/null || true
 
 用法：`./build.sh linux | windows | darwin`
 
-### 代码风格
+### CI/CD
 
-| 语言 | 规范 |
-|:---|:---|
-| Go | `gofmt` / `go vet` |
-| Rust | `rustfmt`，`cargo clippy` |
-| Vue/JS | ESLint + Prettier (如已配置) |
+项目包含两个 GitHub Actions 工作流：
 
-### IDE 配置 (VS Code)
+| 工作流 | 触发条件 | 行为 |
+|:---|:---|:---|
+| `pr.yml` | Pull Request → main/master | Go 测试 / 前端构建 / Rust 检查 并行运行 |
+| `release.yml` | 推送 `v*` 标签 或手动触发 | 测试 → Go 交叉编译 → Tauri 打包 → 发布 Release |
 
-推荐扩展：`golang.go` / `Vue.volar` / `bradlc.vscode-tailwindcss` / `tauri-apps.tauri-vscode` / `rust-lang.rust-analyzer`
+**PR 检查流程：**
 
-调试配置 (`.vscode/launch.json`)：
-
-```json
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Go: Launch Server",
-      "type": "go",
-      "request": "launch",
-      "mode": "auto",
-      "program": "${workspaceFolder}/go-engine",
-      "args": ["serve", "--port=9527", "--dir=./test-recv"]
-    }
-  ]
-}
+```
+pull_request
+    │
+    ├── test-go       (go test + go vet)
+    ├── test-frontend (npm ci + build)
+    └── check-rust    (cargo check + clippy)
 ```
 
-### 常用命令
+三个 job 并行执行，任一失败则 PR 标记 ❌，阻止合并。
+
+**Release 发布流程：**
+
+推送 `v*` 标签即可触发多平台构建，产物自动发布到 GitHub Release。
 
 ```bash
-cd go-engine && go test ./... -v      # Go 测试
-cd go-engine && go build -o xshare .  # Go 编译
-npm run dev                            # 前端开发
-npm run build                          # 前端生产构建
-npm run tauri dev                      # 桌面开发
-npm run tauri build                    # 桌面打包
-cargo clippy --manifest-path src-tauri/Cargo.toml  # Rust lint
+git tag v1.0.0
+git push origin v1.0.0
 ```
+
+流水线自动执行：
+
+1. **测试** — `go test` + `go vet` + `npm run build`，任一步失败则终止发布
+2. **Go 交叉编译** — `GOOS` 矩阵生成 Linux / Windows / macOS 四个 binary
+3. **Tauri 桌面构建** — ubuntu / windows / macos 三台 runner 并行打包
+4. **发布** — `.deb` / `.AppImage` / `.msi` / `.exe` / `.dmg` 上传为 Release Asset
+
+工作流定义文件：`.github/workflows/pr.yml` / `.github/workflows/release.yml`。Release 也可在 Actions 页面手动触发 (`workflow_dispatch`)。
 
 ## 使用
 
