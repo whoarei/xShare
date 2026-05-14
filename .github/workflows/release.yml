@@ -108,7 +108,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: "xShare v__VERSION__"
+          releaseName: "xShare ${{ github.ref_name }}"
           releaseBody: "See CHANGELOG for details."
           releaseDraft: true
           args: --target ${{ matrix.target }}
