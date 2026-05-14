@@ -4,7 +4,6 @@ target/
 binaries/
 *.tar.gz
 
-package-lock.json
 *.local
 
 .DS_Store
