@@ -67,6 +67,10 @@ func Discover(timeout time.Duration) ([]Peer, error) {
 		return nil, fmt.Errorf("mdns query: %w", err)
 	}
 
+	func() {
+		defer func() { _ = recover() }()
+		close(entriesCh)
+	}()
 	<-done
 	return peers, nil
 }
