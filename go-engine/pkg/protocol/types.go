@@ -25,7 +25,3 @@ type Ack struct {
 	Code   int    `json:"code"`
 	Msg    string `json:"msg"`
 }
-
-type Mkdir struct {
-	Path string `json:"path"`
-}

@@ -1,13 +1,13 @@
 <script setup>
 defineProps({
-  selectedPaths: { type: Array, default: () => [] },
+  selectedItems: { type: Array, default: () => [] },
   selectedPeer: { type: String, default: null },
   peers: { type: Array, default: () => [] },
   sending: { type: Boolean, default: false },
   canSend: { type: Boolean, default: false },
 })
 
-defineEmits(['update:selectedPaths', 'update:selectedPeer', 'browse-files', 'browse-dir', 'remove-path', 'send'])
+defineEmits(['update:selectedItems', 'update:selectedPeer', 'browse-files', 'browse-dir', 'remove-path', 'send'])
 </script>
 
 <template>
@@ -42,21 +42,25 @@ defineEmits(['update:selectedPaths', 'update:selectedPeer', 'browse-files', 'bro
       </button>
     </div>
 
-    <div v-if="selectedPaths.length === 0" class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+    <div v-if="selectedItems.length === 0" class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
       <p class="text-sm text-gray-400">Select files or folders to share</p>
       <p class="text-xs text-gray-300 mt-1">Use the buttons above to browse</p>
     </div>
     <div v-else class="space-y-1 max-h-40 overflow-y-auto scrollbar-thin mb-3">
       <div
-        v-for="(path, i) in selectedPaths"
-        :key="path"
+        v-for="(item, i) in selectedItems"
+        :key="item.path"
         class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg text-sm"
       >
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg v-if="item.isFile" class="w-4 h-4 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+        <svg v-else class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
-        <span class="flex-1 truncate text-gray-700">{{ path }}</span>
+        <span class="flex-1 truncate text-gray-700">{{ item.path }}</span>
         <button
           @click="$emit('remove-path', i)"
           class="text-gray-400 hover:text-red-500 shrink-0"

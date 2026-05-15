@@ -28,6 +28,33 @@ func (s *Sender) Close() error {
 	return s.conn.Close()
 }
 
+func (s *Sender) SendFile(filePath string) error {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("abs path: %w", err)
+	}
+
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return fmt.Errorf("stat: %w", err)
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("expected file, got directory: %s", filePath)
+	}
+
+	relPath := filepath.Base(absPath)
+	relPath = filepath.ToSlash(relPath)
+
+	if err := s.sendFile(absPath, relPath, info); err != nil {
+		return fmt.Errorf("send file %s: %w", relPath, err)
+	}
+
+	fmt.Printf(`{"type":"progress","path":"%s","kind":"file","done":true}`+"\n", relPath)
+	fmt.Printf(`{"type":"complete","total_files":1}`+"\n")
+	return nil
+}
+
 func (s *Sender) SendDirectory(dirPath string) error {
 	absDir, err := filepath.Abs(dirPath)
 	if err != nil {
@@ -45,8 +72,8 @@ func (s *Sender) SendDirectory(dirPath string) error {
 		if path == absDir {
 			return nil
 		}
-		itemCount++
 		if !info.IsDir() {
+			itemCount++
 			totalSize += info.Size()
 		}
 		return nil
@@ -75,21 +102,16 @@ func (s *Sender) SendDirectory(dirPath string) error {
 		}
 
 		relPath, _ := filepath.Rel(absDir, path)
-		relPath = filepath.ToSlash(relPath)
+		relPath = filepath.ToSlash(filepath.Join(baseName, relPath))
 
 		if info.IsDir() {
-			mkdir := protocol.Mkdir{Path: relPath}
-			if err := protocol.SendJSON(s.conn, protocol.TypeMkdir, mkdir); err != nil {
-				return fmt.Errorf("send mkdir: %w", err)
-			}
-			fmt.Printf(`{"type":"progress","path":"%s","kind":"mkdir"}`+"\n", relPath)
-		} else {
-			if err := s.sendFile(path, relPath, info); err != nil {
-				return fmt.Errorf("send file %s: %w", relPath, err)
-			}
-			sentFiles++
-			fmt.Printf(`{"type":"progress","path":"%s","kind":"file","done":true}`+"\n", relPath)
+			return nil
 		}
+		if err := s.sendFile(path, relPath, info); err != nil {
+			return fmt.Errorf("send file %s: %w", relPath, err)
+		}
+		sentFiles++
+		fmt.Printf(`{"type":"progress","path":"%s","kind":"file","done":true}`+"\n", relPath)
 		return nil
 	})
 	if err != nil {
@@ -148,6 +170,11 @@ func (s *Sender) sendFile(absPath, relPath string, info os.FileInfo) error {
 			}
 		}
 		if err == io.EOF {
+			if n == 0 && info.Size() == 0 {
+				if err := protocol.Send(s.conn, protocol.TypeChunk, nil); err != nil {
+					return fmt.Errorf("send empty chunk: %w", err)
+				}
+			}
 			break
 		}
 		if err != nil {

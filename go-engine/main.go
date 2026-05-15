@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -25,6 +26,8 @@ func main() {
 		cmdDiscover(os.Args[2:])
 	case "send":
 		cmdSend(os.Args[2:])
+	case "list-ips":
+		cmdListIPs()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -33,23 +36,28 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Fprintf(os.Stderr, `xShare v1 - LAN file sharing tool
+		fmt.Fprintf(os.Stderr, `xShare v1 - LAN file sharing tool
 
 Usage:
-  go-engine serve --port=PORT [--dir=DIR]
+  go-engine serve --port=PORT [--dir=DIR] [--ip=ADDR]
     Start the server to receive files.
 
-  go-engine discover [--timeout=SECONDS]
+  go-engine discover [--timeout=SECONDS] [--ip=ADDR]
     Discover peers on the local network.
 
-  go-engine send --peer=ADDR --dir=DIR
-    Send a directory to a peer.
+  go-engine send --peer=ADDR --file=PATH
+    Send a file or directory to a peer.
+
+  go-engine list-ips
+    List available IP addresses on the local machine.
 
 Options:
-  --port=PORT       TCP port (default: 9527)
-  --dir=DIR         Target directory (default: ./received or current dir)
-  --peer=ADDR       Peer address in host:port format
-  --timeout=SECONDS Discovery timeout in seconds (default: 5)
+  --port=PORT          TCP port (default: 9527)
+  --dir=DIR            Target directory (default: ./received or current dir)
+  --file=PATH          File or directory path to send
+  --peer=ADDR          Peer address in host:port format
+  --timeout=SECONDS    Discovery timeout in seconds (default: 5)
+  --ip=ADDR            IP address to bind and advertise (default: all interfaces)
 `)
 }
 
@@ -82,7 +90,9 @@ func cmdServe(args []string) {
 		os.Exit(1)
 	}
 
-	srv, err := discovery.Register(port)
+	bindIP := getArg(args, "ip", "")
+
+	srv, err := discovery.Register(port, bindIP)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
 		os.Exit(1)
@@ -96,7 +106,7 @@ func cmdServe(args []string) {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- startTCPServer(port, absDir)
+		errCh <- startTCPServer(port, bindIP, absDir)
 	}()
 
 	select {
@@ -109,9 +119,13 @@ func cmdServe(args []string) {
 	}
 }
 
-func startTCPServer(port int, targetDir string) error {
+func startTCPServer(port int, bindIP string, targetDir string) error {
 	receiver := transfer.NewReceiver(targetDir)
-	return receiver.ListenAndServe(port)
+	addr := fmt.Sprintf(":%d", port)
+	if bindIP != "" {
+		addr = net.JoinHostPort(bindIP, fmt.Sprintf("%d", port))
+	}
+	return receiver.ListenAndServe(addr)
 }
 
 func cmdDiscover(args []string) {
@@ -119,7 +133,9 @@ func cmdDiscover(args []string) {
 	timeoutSec := 5
 	fmt.Sscanf(timeoutStr, "%d", &timeoutSec)
 
-	peers, err := discovery.Discover(time.Duration(timeoutSec) * time.Second)
+	bindIP := getArg(args, "ip", "")
+
+	peers, err := discovery.Discover(time.Duration(timeoutSec)*time.Second, bindIP)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
 		os.Exit(1)
@@ -132,6 +148,19 @@ func cmdDiscover(args []string) {
 	fmt.Println(string(result))
 }
 
+func cmdListIPs() {
+	ips, err := discovery.ListIPs()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
+		os.Exit(1)
+	}
+	result, _ := json.Marshal(map[string]interface{}{
+		"type": "ips",
+		"ips":  ips,
+	})
+	fmt.Println(string(result))
+}
+
 func cmdSend(args []string) {
 	peer := getArg(args, "peer", "")
 	if peer == "" {
@@ -139,9 +168,9 @@ func cmdSend(args []string) {
 		os.Exit(1)
 	}
 
-	dir := getArg(args, "dir", "")
-	if dir == "" {
-		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"--dir is required"}`+"\n")
+	path := getArg(args, "file", "")
+	if path == "" {
+		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"--file is required"}`+"\n")
 		os.Exit(1)
 	}
 
@@ -152,8 +181,21 @@ func cmdSend(args []string) {
 	}
 	defer sender.Close()
 
-	if err := sender.SendDirectory(dir); err != nil {
+	info, err := os.Stat(path)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
 		os.Exit(1)
+	}
+
+	if info.IsDir() {
+		if err := sender.SendDirectory(path); err != nil {
+			fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
+			os.Exit(1)
+		}
+	} else {
+		if err := sender.SendFile(path); err != nil {
+			fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
+			os.Exit(1)
+		}
 	}
 }

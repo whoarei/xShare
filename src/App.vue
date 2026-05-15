@@ -11,10 +11,15 @@ const serverPort = ref(9527)
 const serverDir = ref('./received')
 const serverOutput = ref([])
 
+const networkInterfaces = ref([])
+const selectedInterface = ref('')
+const availableIPs = ref([])
+const selectedIP = ref('')
+
 const peers = ref([])
 const discovering = ref(false)
 
-const selectedPaths = ref([])
+const selectedItems = ref([])
 const selectedPeer = ref(null)
 const sending = ref(false)
 
@@ -35,7 +40,8 @@ async function startServer() {
   try {
     const result = await invoke('start_server', {
       port: serverPort.value,
-      dir: serverDir.value
+      dir: serverDir.value,
+      ip: selectedIP.value || null
     })
     serverRunning.value = true
     addLog('Server started: ' + result, 'success')
@@ -57,7 +63,10 @@ async function stopServer() {
 async function discoverPeers() {
   discovering.value = true
   try {
-    const output = await invoke('discover_peers', { timeout: 5 })
+    const output = await invoke('discover_peers', {
+      timeout: 5,
+      ip: selectedIP.value || null
+    })
     const data = JSON.parse(output)
     if (data.type === 'peers') {
       peers.value = data.peers || []
@@ -73,8 +82,8 @@ async function discoverPeers() {
 async function browseFiles() {
   try {
     const path = await invoke('open_file_dialog')
-    if (path && !selectedPaths.value.includes(path)) {
-      selectedPaths.value.push(path)
+    if (path && !selectedItems.value.some(i => i.path === path)) {
+      selectedItems.value.push({ path, isFile: true })
     }
   } catch (e) {
     addLog('File dialog error: ' + e, 'error')
@@ -84,8 +93,8 @@ async function browseFiles() {
 async function browseDir() {
   try {
     const path = await invoke('open_dir_dialog')
-    if (path && !selectedPaths.value.includes(path)) {
-      selectedPaths.value.push(path)
+    if (path && !selectedItems.value.some(i => i.path === path)) {
+      selectedItems.value.push({ path, isFile: false })
     }
   } catch (e) {
     addLog('Directory dialog error: ' + e, 'error')
@@ -93,21 +102,21 @@ async function browseDir() {
 }
 
 function removePath(index) {
-  selectedPaths.value.splice(index, 1)
+  selectedItems.value.splice(index, 1)
 }
 
 async function sendFiles() {
-  if (!selectedPeer.value || selectedPaths.value.length === 0) return
+  if (!selectedPeer.value || selectedItems.value.length === 0) return
   sending.value = true
   transferActive.value = true
   currentTask.value = null
   progressItems.value = []
 
   try {
-    for (const dir of selectedPaths.value) {
+    for (const item of selectedItems.value) {
       await invoke('send_files', {
         peer: selectedPeer.value,
-        dir: dir
+        path: item.path
       })
     }
   } catch (e) {
@@ -182,6 +191,19 @@ function handleTransferComplete(payload) {
   transferActive.value = false
 }
 
+async function listIPs() {
+  try {
+    const output = await invoke('list_ips')
+    const data = JSON.parse(output)
+    if (data.type === 'ips') {
+      availableIPs.value = data.ips || []
+      addLog(`Found ${availableIPs.value.length} IP address(es)`, 'info')
+    }
+  } catch (e) {
+    addLog('Failed to list IPs: ' + e, 'warn')
+  }
+}
+
 function formatSize(bytes) {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -194,9 +216,10 @@ function formatSize(bytes) {
   return `${size.toFixed(1)} ${units[i]}`
 }
 
-const canSend = computed(() => selectedPeer.value && selectedPaths.value.length > 0 && !sending.value)
+const canSend = computed(() => !!selectedPeer.value && selectedItems.value.length > 0 && !sending.value)
 
 onMounted(async () => {
+  listIPs()
   unlisteners.push(
     await listen('transfer-progress', (e) => handleProgress(e.payload)),
     await listen('transfer-error', (e) => handleTransferError(e.payload)),
@@ -281,6 +304,23 @@ onUnmounted(() => {
                 Stop Server
               </button>
             </div>
+            <div class="pt-1">
+              <label class="text-xs text-gray-400 mb-1 block">Bind IP</label>
+              <select
+                v-model="selectedIP"
+                class="input w-full text-sm"
+                :disabled="serverRunning"
+              >
+                <option value="">Auto (default)</option>
+                <option
+                  v-for="info in availableIPs"
+                  :key="info.ip"
+                  :value="info.ip"
+                >
+                  {{ info.ip }} ({{ info.iface }}, {{ info.family }})
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -319,8 +359,8 @@ onUnmounted(() => {
       <main class="flex-1 flex flex-col overflow-hidden">
         <!-- File Selector & Send -->
         <FileSelector
-          v-model:selectedPaths="selectedPaths"
-          :selectedPeer="selectedPeer"
+          v-model:selectedItems="selectedItems"
+          v-model:selectedPeer="selectedPeer"
           :peers="peers"
           :sending="sending"
           :canSend="canSend"

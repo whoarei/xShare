@@ -12,8 +12,7 @@ const (
 	TypeFileHeader uint8 = 0x02
 	TypeChunk      uint8 = 0x03
 	TypeAck        uint8 = 0x04
-	TypeMkdir      uint8 = 0x05
-	TypeDone       uint8 = 0x06
+	TypeDone       uint8 = 0x05
 )
 
 var TypeNames = map[uint8]string{
@@ -21,6 +20,5 @@ var TypeNames = map[uint8]string{
 	TypeFileHeader: "FileHeader",
 	TypeChunk:      "Chunk",
 	TypeAck:        "Ack",
-	TypeMkdir:      "Mkdir",
 	TypeDone:       "Done",
 }

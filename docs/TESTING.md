@@ -4,6 +4,7 @@
 
 | 测试层级 | 工具 | 文件位置 |
 |:---|:---|:---|
+| 前端单元测试 | `vitest` + `@vue/test-utils` | `src/App.spec.js`, `src/components/*.spec.js` |
 | Go 单元测试 | `go test` | `go-engine/pkg/protocol/codec_test.go` |
 | Go 单元测试 | `go test` | `go-engine/pkg/transfer/path_test.go` |
 | 前端构建验证 | `npm run build` | Vite 生产构建 |
@@ -142,8 +143,8 @@ node --version 2>/dev/null || echo "  > 请安装 Node.js: https://nodejs.org"
 | `TestDecodeHeader_InvalidMagic` | 非法 Magic 应返回错误 |
 | `TestDecodeHeader_VersionMismatch` | 版本不匹配应返回错误 |
 | `TestEncodeMessage` | 完整报文 (Header + Payload) 编解码 |
-| `TestEncodeDecodeJSON` | Mkdir 等 JSON 载荷编解码 |
-| `TestAllMessageTypes` | TaskInfo / FileHeader / Ack / Mkdir 全类型测试 |
+| `TestEncodeDecodeJSON` | TaskInfo 等 JSON 载荷编解码 |
+| `TestAllMessageTypes` | TaskInfo / FileHeader / Ack 全类型测试 |
 | `TestDoneMessage` | Done 类型零载荷验证 |
 | `TestReadPayload_PartialRead` | 模拟 TCP 粘包：部分读取应报错 |
 
@@ -210,11 +211,134 @@ ok  	go-engine/pkg/transfer	0.002s
 
 ---
 
-## 2. 运行全部测试
+## 2. 前端单元测试
+
+### 2.1 测试框架
+
+| 组件 | 版本 | 用途 |
+|:---|:---|:---|
+| `vitest` | ^4.x | 测试运行器，兼容 Vite 配置 |
+| `@vue/test-utils` | ^2.x | Vue 3 组件挂载与 DOM 断言 |
+| `jsdom` | — | 浏览器 DOM 环境模拟 |
+
+**配置文件:** `vitest.config.js`
+
+### 2.2 运行
 
 ```bash
+# 一次性运行全部测试
+npm test
+
+# 监视模式 (开发时持续运行)
+npm run test:watch
+```
+
+### 2.3 测试文件清单 (129 用例)
+
+| 文件 | 用例数 | 测试对象 |
+|:---|:---|:---|
+| `src/App.spec.js` | 63 | App.vue — 服务端控制、设备发现、文件选择、发送流程、Tauri 事件处理、日志、formatSize、生命周期 |
+| `src/components/DeviceList.spec.js` | 17 | DeviceList.vue — 空状态/发现中/有设备渲染、点击选中、Discover 按钮、边界值 |
+| `src/components/FileSelector.spec.js` | 22 | FileSelector.vue — 路径列表、添加文件/文件夹、移除路径、对等点下拉框、发送按钮 |
+| `src/components/TransferProgress.spec.js` | 29 | TransferProgress.vue — 激活/隐藏、任务信息、进度条、当前文件、条目列表、计算属性 |
+
+### 2.4 App.vue 测试覆盖详情
+
+| 测试分组 | 用例数 | 覆盖内容 |
+|:---|:---|:---|
+| Server Controls | 10 | Start/Stop 按钮渲染、`start_server`/`stop_server` invoke 参数、失败处理、IP 下拉框、输入禁用 |
+| Peer Discovery | 5 | `discover_peers` invoke、对等点列表更新、空结果、失败处理、`discovering` 状态转换 |
+| File Selection | 5 | `open_file_dialog`/`open_dir_dialog` invoke、路径添加、重复过滤、移除、对话框失败 |
+| Send Flow | 4 | 无对等点/无路径守卫、多路径 `send_files` 循环、发送失败处理 |
+| Event: transfer-progress | 5 | task/progress/complete/error 事件、JSON 解析失败静默忽略 |
+| Event: server-event | 9 | ready/task/progress/complete/error 事件、原始文本追加、恶意 JSON 降级、完整接收链路模拟、`serverOutput` 文件路径展示、新旧任务条目共存 |
+| Event: transfer-error | 1 | transfer-error 事件日志 |
+| Event: transfer-complete | 1 | 完成状态重置 (`sending`/`transferActive`) |
+| Event: server-error | 1 | server-error 事件日志 |
+| Event: server-terminated | 1 | `serverRunning` 置 false + 日志 |
+| Log System | 5 | 日志前置插入、200 条上限、`serverOutput` 100 条上限、空状态提示、按类型着色 |
+| formatSize | 6 | 0 B / B / KB / MB / GB / 空值 → 0 B |
+| canSend | 4 | 全条件 true / 无对等点 / 无路径 / 发送中 |
+| Lifecycle | 2 | 挂载注册 6 个监听器、卸载调用全部 `unlisten` |
+
+### 2.5 DeviceList.vue 测试覆盖详情
+
+| 测试分组 | 用例数 | 覆盖内容 |
+|:---|:---|:---|
+| Rendering states | 4 | 空状态占位文本、发现中 "Searching for peers..."、按钮 spinner、"Discover" 文本 |
+| Discover button | 3 | 发现中禁用、非发现中可用、点击 emit `discover` |
+| Peer list | 5 | 对等点渲染、名称/地址展示、点击 emit `update:selectedPeer`、选中高亮、未选中样式 |
+| Edge cases | 3 | 缺失 name、缺失 addr、超长名称 truncate |
+
+### 2.6 FileSelector.vue 测试覆盖详情
+
+| 测试分组 | 用例数 | 覆盖内容 |
+|:---|:---|:---|
+| Rendering states | 4 | 虚线占位框、路径列表渲染、路径文本、有路径时隐藏占位 |
+| Buttons | 2 | "Add Files" emit `browse-files`、"Add Folder" emit `browse-dir` |
+| Path removal | 3 | 每行有删除按钮、点击 emit `remove-path(index)`、发送中禁用删除 |
+| Peer dropdown | 5 | 显示所有对等点选项、选择 emit `update:selectedPeer`、默认选项、选中值双向绑定、空列表 |
+| Send button | 4 | 点击 emit `send`、`!canSend` 时禁用、`canSend` 时可用、发送中 spinner + "Sending..." |
+| Edge cases | 3 | 特殊字符路径、20 条长列表、缺失 peer.name |
+
+### 2.7 TransferProgress.vue 测试覆盖详情
+
+| 测试分组 | 用例数 | 覆盖内容 |
+|:---|:---|:---|
+| active prop | 2 | `false` 不渲染、`true` 渲染 "Transfer Progress" |
+| Task info | 3 | 任务 ID + 进度计数、进度条存在、进度条 `width` 匹配 `progressPercent` |
+| Current file | 4 | 显示进行中文件路径、多个 pending 取最后一个、全部 done 不显示、无条目不显示 |
+| Waiting state | 3 | 无 task + 无 items 显示等待文本、有 task 隐藏、有 items 但无 task 隐藏 |
+| Item list | 5 | 逆序排列、20 条上限、done 文件绿色点、pending 文件蓝色脉冲点、kind 标签 |
+| Computed | 7 | `fileCount`(仅 done)、`completedItems`=`fileCount`、`totalItems=0`→0、`task=null`→0、50%/100% 进度、缺失 `item_count`→0 |
+| Edge cases | 3 | 未知 kind 显示标签、>100% 进度行为、无 task 有 items |
+
+### 2.8 Mock 架构
+
+前端测试通过 `vi.mock` 拦截 Tauri API 调用，无需真实后端：
+
+```js
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: (...args) => mockInvoke(...args),
+}))
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: (event, callback) => {
+    listeners[event] = callback
+    return Promise.resolve(() => { delete listeners[event] })
+  },
+}))
+```
+
+- **`mockInvoke`**: 拦截所有 `invoke()` 调用，按命令名返回预设响应；支持 `mockRejectedValue` 模拟失败
+- **`listeners`**: 捕获 `listen()` 注册的所有事件回调，测试可直接 `triggerEvent(name, payload)` 模拟 Tauri 事件
+- **`capturedUnlisteners`**: 记录 `listen` 返回的清理函数，验证 `onUnmounted` 正确释放
+
+### 2.9 前端兼容性检查清单
+
+| 测试项 | Linux | macOS | Windows | 状态 |
+|:---|:---|:---|:---|:---|
+| 组件渲染 (vue-test-utils) | ✓ | ✓ | ✓ | |
+| App.vue 状态管理 | ✓ | 待测 | 待测 | |
+| DeviceList 交互 | ✓ | 待测 | 待测 | |
+| FileSelector 交互 | ✓ | 待测 | 待测 | |
+| TransferProgress 计算 | ✓ | 待测 | 待测 | |
+| Tauri invoke mock | ✓ | — | — | |
+| Tauri listen mock | ✓ | — | — | |
+| 日志溢出截断 (200条) | ✓ | — | — | |
+| JSON 解析容错 | ✓ | — | — | |
+
+---
+
+## 3. 运行全部测试
+
+```bash
+# Go 单元测试
 cd go-engine
 go test ./... -v
+
+# 前端单元测试 (仓库根目录)
+npm test
 ```
 
 ---

@@ -7,7 +7,6 @@ const props = defineProps({
   items: { type: Array, default: () => [] },
 })
 
-const dirCount = computed(() => props.items.filter(i => i.kind === 'mkdir').length)
 const fileCount = computed(() => props.items.filter(i => i.kind === 'file' && i.done).length)
 const currentFile = computed(() => {
   const files = props.items.filter(i => i.kind === 'file' && !i.done)
@@ -15,7 +14,7 @@ const currentFile = computed(() => {
 })
 
 const totalItems = computed(() => props.task?.item_count || 0)
-const completedItems = computed(() => dirCount.value + fileCount.value)
+const completedItems = computed(() => fileCount.value)
 const progressPercent = computed(() => {
   if (!totalItems.value || totalItems.value === 0) return 0
   return Math.round((completedItems.value / totalItems.value) * 100)
@@ -62,11 +61,7 @@ const progressPercent = computed(() => {
         class="flex items-center gap-2 text-xs"
       >
         <span
-          v-if="item.kind === 'mkdir'"
-          class="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"
-        ></span>
-        <span
-          v-else-if="item.done"
+          v-if="item.done"
           class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
         ></span>
         <span

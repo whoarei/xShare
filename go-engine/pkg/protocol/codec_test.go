@@ -153,8 +153,8 @@ func TestEncodeMessage(t *testing.T) {
 }
 
 func TestEncodeDecodeJSON(t *testing.T) {
-	mkdir := Mkdir{Path: "docs/subdir"}
-	data, err := EncodeJSON(TypeMkdir, mkdir)
+	ti := TaskInfo{ID: "task-1", TotalSize: 2048, ItemCount: 3}
+	data, err := EncodeJSON(TypeTaskInfo, ti)
 	if err != nil {
 		t.Fatalf("EncodeJSON failed: %v", err)
 	}
@@ -164,8 +164,8 @@ func TestEncodeDecodeJSON(t *testing.T) {
 		t.Fatalf("DecodeHeader failed: %v", err)
 	}
 
-	if header.Type != TypeMkdir {
-		t.Errorf("Type mismatch: got %d, want %d", header.Type, TypeMkdir)
+	if header.Type != TypeTaskInfo {
+		t.Errorf("Type mismatch: got %d, want %d", header.Type, TypeTaskInfo)
 	}
 
 	payload, err := ReadPayload(bytes.NewReader(data[HeaderSize:]), header.Length)
@@ -173,13 +173,13 @@ func TestEncodeDecodeJSON(t *testing.T) {
 		t.Fatalf("ReadPayload failed: %v", err)
 	}
 
-	var decoded Mkdir
+	var decoded TaskInfo
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		t.Fatalf("JSON unmarshal failed: %v", err)
 	}
 
-	if decoded.Path != "docs/subdir" {
-		t.Errorf("Path mismatch: got %q, want %q", decoded.Path, "docs/subdir")
+	if decoded.ID != "task-1" {
+		t.Errorf("ID mismatch: got %q, want %q", decoded.ID, "task-1")
 	}
 }
 
@@ -193,7 +193,6 @@ func TestAllMessageTypes(t *testing.T) {
 		{"FileHeader", TypeFileHeader, FileHeader{Path: "a/b.txt", Size: 512, Mode: 0644, Hash: "sha256:abc"}},
 		{"Ack", TypeAck, Ack{Status: "ok", Code: 0, Msg: ""}},
 		{"AckError", TypeAck, Ack{Status: "error", Code: 3, Msg: "disk full"}},
-		{"Mkdir", TypeMkdir, Mkdir{Path: "deep/nested/dir"}},
 	}
 
 	for _, tt := range tests {

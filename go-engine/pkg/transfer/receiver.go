@@ -52,10 +52,6 @@ func (r *Receiver) Receive(conn net.Conn) error {
 			if err := r.handleChunk(header.Length); err != nil {
 				return err
 			}
-		case protocol.TypeMkdir:
-			if err := r.handleMkdir(header.Length); err != nil {
-				return err
-			}
 		case protocol.TypeDone:
 			return r.finalize()
 		default:
@@ -104,7 +100,17 @@ func (r *Receiver) handleFileHeader(length uint64) error {
 		return fmt.Errorf("unmarshal file header: %w", err)
 	}
 
+	if strings.Contains(fh.Path, "..") {
+		return r.sendAck("error", 5, "path traversal detected")
+	}
+
 	fullPath := filepath.Join(r.targetDir, filepath.FromSlash(fh.Path))
+	cleanTarget, _ := filepath.Abs(r.targetDir)
+	cleanTarget = filepath.Clean(cleanTarget)
+	cleanPath := filepath.Clean(fullPath)
+	if !strings.HasPrefix(cleanPath, cleanTarget+string(filepath.Separator)) && cleanPath != cleanTarget {
+		return r.sendAck("error", 5, "path traversal detected")
+	}
 
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return r.sendAck("error", 1, fmt.Sprintf("mkdir parent: %v", err))
@@ -134,7 +140,7 @@ func (r *Receiver) handleChunk(length uint64) error {
 	}
 
 	if r.currentFile == nil {
-		return nil
+		return fmt.Errorf("received chunk without active file header")
 	}
 
 	if _, err := r.currentFile.Write(payload); err != nil {
@@ -151,25 +157,6 @@ func (r *Receiver) handleChunk(length uint64) error {
 		return r.verifyAndSendFinalAck()
 	}
 
-	return nil
-}
-
-func (r *Receiver) handleMkdir(length uint64) error {
-	payload, err := protocol.ReadPayload(r.conn, length)
-	if err != nil {
-		return fmt.Errorf("read mkdir payload: %w", err)
-	}
-	var mkdir protocol.Mkdir
-	if err := json.Unmarshal(payload, &mkdir); err != nil {
-		return fmt.Errorf("unmarshal mkdir: %w", err)
-	}
-
-	fullPath := filepath.Join(r.targetDir, filepath.FromSlash(mkdir.Path))
-	if err := os.MkdirAll(fullPath, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "mkdir error: %v\n", err)
-	}
-
-	fmt.Printf(`{"type":"progress","path":"%s","kind":"mkdir"}`+"\n", mkdir.Path)
 	return nil
 }
 
@@ -197,8 +184,8 @@ func (r *Receiver) verifyAndSendFinalAck() error {
 	return r.sendAck("ok", 0, "")
 }
 
-func (r *Receiver) ListenAndServe(port int) error {
-	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+func (r *Receiver) ListenAndServe(addr string) error {
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}

@@ -32,9 +32,7 @@
 | `0x02` | FileHeader | JSON: `{path, size, mode, hash}` |
 | `0x03` | Chunk | Binary: 原始文件数据 |
 | `0x04` | Ack | JSON: `{status, code, msg}` |
-| `0x05` | Mkdir | JSON: `{path}` |
-| `0x06` | Done | 空载荷 |
-
+| `0x05` | Done | 空载荷 |
 ## 项目结构
 
 ```

@@ -8,3 +8,5 @@ binaries/
 
 .DS_Store
 *.log
+
+/session-*.md
