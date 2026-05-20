@@ -28,7 +28,7 @@ jobs:
         run: cd go-engine && go vet ./...
 
       - name: Frontend typecheck / build
-        run: npm ci && npm run build
+        run: npm install && npm run build
 
   # ── Build Go sidecar binaries for all platforms ──
   build-go:
@@ -98,7 +98,7 @@ jobs:
           path: src-tauri/binaries/
 
       - name: Install frontend deps
-        run: npm ci
+        run: npm install
 
       - name: Build Tauri
         uses: tauri-apps/tauri-action@v0
