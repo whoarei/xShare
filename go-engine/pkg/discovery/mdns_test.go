@@ -403,3 +403,156 @@ func TestRegisterWithSpecificIP(t *testing.T) {
 		t.Errorf("Could not find self (port %d, IP %s) among discovered peers", testPort, testIP)
 	}
 }
+
+func TestInterfaceInfoJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		info InterfaceInfo
+	}{
+		{
+			name: "full interface",
+			info: InterfaceInfo{
+				Name:  "eth0",
+				Index: 2,
+				MTU:   1500,
+				Flags: "up|broadcast|multicast|running",
+				MAC:   "00:11:22:33:44:55",
+				IPs: []IPInfo{
+					{IP: "192.168.1.100", Iface: "eth0", Family: "v4"},
+					{IP: "fe80::1", Iface: "eth0", Family: "v6"},
+				},
+			},
+		},
+		{
+			name: "loopback",
+			info: InterfaceInfo{
+				Name:  "lo",
+				Index: 1,
+				MTU:   65536,
+				Flags: "up|loopback|running",
+				MAC:   "",
+				IPs: []IPInfo{
+					{IP: "127.0.0.1", Iface: "lo", Family: "v4"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(tt.info)
+			if err != nil {
+				t.Fatalf("Marshal failed: %v", err)
+			}
+
+			var decoded InterfaceInfo
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatalf("Unmarshal failed: %v", err)
+			}
+
+			if decoded.Name != tt.info.Name {
+				t.Errorf("Name mismatch: got %q, want %q", decoded.Name, tt.info.Name)
+			}
+			if decoded.Index != tt.info.Index {
+				t.Errorf("Index mismatch: got %d, want %d", decoded.Index, tt.info.Index)
+			}
+			if decoded.MTU != tt.info.MTU {
+				t.Errorf("MTU mismatch: got %d, want %d", decoded.MTU, tt.info.MTU)
+			}
+			if decoded.Flags != tt.info.Flags {
+				t.Errorf("Flags mismatch: got %q, want %q", decoded.Flags, tt.info.Flags)
+			}
+			if decoded.MAC != tt.info.MAC {
+				t.Errorf("MAC mismatch: got %q, want %q", decoded.MAC, tt.info.MAC)
+			}
+			if len(decoded.IPs) != len(tt.info.IPs) {
+				t.Errorf("IPs length mismatch: got %d, want %d", len(decoded.IPs), len(tt.info.IPs))
+			}
+		})
+	}
+}
+
+func TestInterfaceInfoJSON_FieldTags(t *testing.T) {
+	info := InterfaceInfo{
+		Name:  "wlan0",
+		Index: 3,
+		MTU:   1500,
+		Flags: "up|broadcast|multicast|running",
+		MAC:   "aa:bb:cc:dd:ee:ff",
+		IPs:   []IPInfo{},
+	}
+
+	data, err := json.Marshal(info)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	m := make(map[string]interface{})
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("Unmarshal to map failed: %v", err)
+	}
+
+	expectedKeys := []string{"name", "index", "mtu", "flags", "mac", "ips"}
+	for _, k := range expectedKeys {
+		if _, ok := m[k]; !ok {
+			t.Errorf("missing JSON key %q in output: %s", k, data)
+		}
+	}
+
+	if v, ok := m["name"].(string); !ok || v != "wlan0" {
+		t.Errorf("name value: got %v, want %q", v, "wlan0")
+	}
+	if v, ok := m["index"].(float64); !ok || int(v) != 3 {
+		t.Errorf("index value: got %v, want %d", v, 3)
+	}
+}
+
+func TestListInterfaces(t *testing.T) {
+	ifaces, err := ListInterfaces()
+	if err != nil {
+		t.Fatalf("ListInterfaces failed: %v", err)
+	}
+
+	if len(ifaces) == 0 {
+		t.Fatal("expected at least one network interface")
+	}
+
+	for _, iface := range ifaces {
+		if iface.Name == "" {
+			t.Error("interface Name must not be empty")
+		}
+		if iface.Index <= 0 {
+			t.Errorf("interface Index must be positive: got %d for %s", iface.Index, iface.Name)
+		}
+		if iface.Flags == "" {
+			t.Errorf("interface Flags must not be empty for %s", iface.Name)
+		}
+		t.Logf("  %s: index=%d mtu=%d flags=%s mac=%s ips=%v",
+			iface.Name, iface.Index, iface.MTU, iface.Flags, iface.MAC, len(iface.IPs))
+	}
+	t.Logf("Found %d interface(s)", len(ifaces))
+}
+
+func TestFlagToString(t *testing.T) {
+	tests := []struct {
+		name     string
+		flags    net.Flags
+		expected string
+	}{
+		{"up only", net.FlagUp, "up"},
+		{"up+running", net.FlagUp | net.FlagRunning, "up|running"},
+		{"up+broadcast+multicast+running", net.FlagUp | net.FlagBroadcast | net.FlagMulticast | net.FlagRunning, "up|broadcast|multicast|running"},
+		{"none", 0, "none"},
+		{"loopback", net.FlagUp | net.FlagLoopback | net.FlagRunning, "up|loopback|running"},
+		{"pointtopoint", net.FlagUp | net.FlagPointToPoint | net.FlagRunning, "up|pointtopoint|running"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := flagToString(tt.flags)
+			if result != tt.expected {
+				t.Errorf("flagToString(%v) = %q, want %q", tt.flags, result, tt.expected)
+			}
+		})
+	}
+}

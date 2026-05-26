@@ -28,6 +28,8 @@ func main() {
 		cmdSend(os.Args[2:])
 	case "list-ips":
 		cmdListIPs()
+	case "list-ifaces":
+		cmdListIfaces()
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -50,6 +52,9 @@ Usage:
 
   go-engine list-ips
     List available IP addresses on the local machine.
+
+  go-engine list-ifaces
+    List all network interfaces on the local machine.
 
 Options:
   --port=PORT          TCP port (default: 9527)
@@ -157,6 +162,19 @@ func cmdListIPs() {
 	result, _ := json.Marshal(map[string]interface{}{
 		"type": "ips",
 		"ips":  ips,
+	})
+	fmt.Println(string(result))
+}
+
+func cmdListIfaces() {
+	ifaces, err := discovery.ListInterfaces()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
+		os.Exit(1)
+	}
+	result, _ := json.Marshal(map[string]interface{}{
+		"type":       "interfaces",
+		"interfaces": ifaces,
 	})
 	fmt.Println(string(result))
 }

@@ -140,3 +140,73 @@ func TestCmdListIPs(t *testing.T) {
 		}
 	}
 }
+
+func TestCmdListIfaces(t *testing.T) {
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	os.Stdout = w
+
+	cmdListIfaces()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("Failed to read stdout: %v", err)
+	}
+	output := string(buf)
+
+	if output == "" {
+		t.Fatal("Expected non-empty stdout output")
+	}
+
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("Stdout is not valid JSON: %v\nOutput: %s", err, output)
+	}
+
+	if typ, ok := parsed["type"].(string); !ok || typ != "interfaces" {
+		t.Errorf("Expected type=interfaces, got %v", parsed["type"])
+	}
+
+	ifaces, ok := parsed["interfaces"].([]interface{})
+	if !ok {
+		t.Fatal("interfaces field missing or not an array")
+	}
+
+	t.Logf("Listed %d interface(s)", len(ifaces))
+
+	if len(ifaces) == 0 {
+		t.Fatal("expected at least one network interface")
+	}
+
+	for _, raw := range ifaces {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			t.Errorf("interface entry is not a JSON object: %v", raw)
+			continue
+		}
+		if _, ok := m["name"]; !ok {
+			t.Error("interface entry missing 'name' field")
+		}
+		if _, ok := m["index"]; !ok {
+			t.Error("interface entry missing 'index' field")
+		}
+		if _, ok := m["mtu"]; !ok {
+			t.Error("interface entry missing 'mtu' field")
+		}
+		if _, ok := m["flags"]; !ok {
+			t.Error("interface entry missing 'flags' field")
+		}
+		if _, ok := m["mac"]; !ok {
+			t.Error("interface entry missing 'mac' field")
+		}
+		if _, ok := m["ips"]; !ok {
+			t.Error("interface entry missing 'ips' field")
+		}
+	}
+}

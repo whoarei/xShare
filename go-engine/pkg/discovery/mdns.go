@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,6 +24,15 @@ type IPInfo struct {
 	IP     string `json:"ip"`
 	Iface  string `json:"iface"`
 	Family string `json:"family"`
+}
+
+type InterfaceInfo struct {
+	Name  string   `json:"name"`
+	Index int      `json:"index"`
+	MTU   int      `json:"mtu"`
+	Flags string   `json:"flags"`
+	MAC   string   `json:"mac"`
+	IPs   []IPInfo `json:"ips"`
 }
 
 type ServerGroup struct {
@@ -104,6 +114,78 @@ func ListIPs() ([]IPInfo, error) {
 	return out, nil
 }
 
+func flagToString(flags net.Flags) string {
+	names := []string{}
+	if flags&net.FlagUp != 0 {
+		names = append(names, "up")
+	}
+	if flags&net.FlagBroadcast != 0 {
+		names = append(names, "broadcast")
+	}
+	if flags&net.FlagLoopback != 0 {
+		names = append(names, "loopback")
+	}
+	if flags&net.FlagPointToPoint != 0 {
+		names = append(names, "pointtopoint")
+	}
+	if flags&net.FlagMulticast != 0 {
+		names = append(names, "multicast")
+	}
+	if flags&net.FlagRunning != 0 {
+		names = append(names, "running")
+	}
+	if len(names) == 0 {
+		return "none"
+	}
+	return strings.Join(names, "|")
+}
+
+func ListInterfaces() ([]InterfaceInfo, error) {
+	all, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	var out []InterfaceInfo
+	for _, iface := range all {
+		var ips []IPInfo
+		addrs, err := iface.Addrs()
+		if err == nil {
+			for _, addr := range addrs {
+				ipnet, ok := addr.(*net.IPNet)
+				if !ok {
+					continue
+				}
+				ip := ipnet.IP
+				family := "v6"
+				if ip.To4() != nil {
+					family = "v4"
+				}
+				ips = append(ips, IPInfo{
+					IP:     ip.String(),
+					Iface:  iface.Name,
+					Family: family,
+				})
+			}
+		}
+
+		mac := ""
+		if iface.HardwareAddr != nil {
+			mac = iface.HardwareAddr.String()
+		}
+
+		out = append(out, InterfaceInfo{
+			Name:  iface.Name,
+			Index: iface.Index,
+			MTU:   iface.MTU,
+			Flags: flagToString(iface.Flags),
+			MAC:   mac,
+			IPs:   ips,
+		})
+	}
+	return out, nil
+}
+
 func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 	targetIP := net.ParseIP(ipStr)
 	if targetIP == nil {
@@ -132,7 +214,7 @@ func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 
 type ifaceConfig struct {
 	ips   []net.IP
-	iface *net.Interface
+	iface net.Interface
 }
 
 func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
@@ -141,7 +223,7 @@ func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("resolve IP: %w", err)
 		}
-		return []ifaceConfig{{ips: []net.IP{parsedIP}, iface: foundIface}}, nil
+		return []ifaceConfig{{ips: []net.IP{parsedIP}, iface: *foundIface}}, nil
 	}
 
 	ifaces, err := listLANInterfaces()
@@ -158,7 +240,7 @@ func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
 		if len(ips) == 0 {
 			continue
 		}
-		configs = append(configs, ifaceConfig{ips: ips, iface: &iface})
+		configs = append(configs, ifaceConfig{ips: ips, iface: iface})
 	}
 	return configs, nil
 }
@@ -180,11 +262,12 @@ func Register(port int, bindIP string) (*ServerGroup, error) {
 		if err != nil {
 			continue
 		}
-		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: cfg.iface})
+		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: &cfg.iface})
 		if err != nil {
 			continue
 		}
 		servers = append(servers, server)
+		fmt.Printf("register on interface %s with ip %s\n", cfg.iface.Name, cfg.ips)
 	}
 
 	if len(servers) == 0 {
