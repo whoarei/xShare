@@ -130,26 +130,18 @@ func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 	return nil, nil, fmt.Errorf("IP %q not found on any interface", ipStr)
 }
 
-func Register(port int, bindIP string) (*ServerGroup, error) {
-	host, _ := os.Hostname()
-	info := []string{"xShare v1"}
+type ifaceConfig struct {
+	ips   []net.IP
+	iface *net.Interface
+}
 
+func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
 	if bindIP != "" {
 		parsedIP, foundIface, err := resolveIP(bindIP)
 		if err != nil {
 			return nil, fmt.Errorf("resolve IP: %w", err)
 		}
-		service, err := mdns.NewMDNSService(
-			host, ServiceName, "", "", port, []net.IP{parsedIP}, info,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("create mdns service: %w", err)
-		}
-		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: foundIface})
-		if err != nil {
-			return nil, fmt.Errorf("start mdns server: %w", err)
-		}
-		return &ServerGroup{servers: []*mdns.Server{server}}, nil
+		return []ifaceConfig{{ips: []net.IP{parsedIP}, iface: foundIface}}, nil
 	}
 
 	ifaces, err := listLANInterfaces()
@@ -160,19 +152,35 @@ func Register(port int, bindIP string) (*ServerGroup, error) {
 		return nil, fmt.Errorf("no suitable network interface found for mDNS")
 	}
 
-	var servers []*mdns.Server
+	var configs []ifaceConfig
 	for _, iface := range ifaces {
 		ips := interfaceIPs(&iface)
 		if len(ips) == 0 {
 			continue
 		}
+		configs = append(configs, ifaceConfig{ips: ips, iface: &iface})
+	}
+	return configs, nil
+}
+
+func Register(port int, bindIP string) (*ServerGroup, error) {
+	host, _ := os.Hostname()
+	info := []string{"xShare v1"}
+
+	configs, err := collectIfaceConfigs(bindIP)
+	if err != nil {
+		return nil, err
+	}
+
+	var servers []*mdns.Server
+	for _, cfg := range configs {
 		service, err := mdns.NewMDNSService(
-			host, ServiceName, "", "", port, ips, info,
+			host, ServiceName, "", "", port, cfg.ips, info,
 		)
 		if err != nil {
 			continue
 		}
-		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: &iface})
+		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: cfg.iface})
 		if err != nil {
 			continue
 		}
