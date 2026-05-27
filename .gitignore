@@ -10,3 +10,4 @@ binaries/
 *.log
 
 /session-*.md
+src-tauri/gen/
