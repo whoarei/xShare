@@ -1,14 +1,14 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/hashicorp/mdns"
+	"github.com/grandcat/zeroconf"
 )
 
 const ServiceName = "_xshare._tcp"
@@ -33,16 +33,6 @@ type InterfaceInfo struct {
 	Flags string   `json:"flags"`
 	MAC   string   `json:"mac"`
 	IPs   []IPInfo `json:"ips"`
-}
-
-type ServerGroup struct {
-	servers []*mdns.Server
-}
-
-func (sg *ServerGroup) Shutdown() {
-	for _, s := range sg.servers {
-		s.Shutdown()
-	}
 }
 
 func isValidUnicastIP(ip net.IP) bool {
@@ -212,18 +202,13 @@ func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 	return nil, nil, fmt.Errorf("IP %q not found on any interface", ipStr)
 }
 
-type ifaceConfig struct {
-	ips   []net.IP
-	iface net.Interface
-}
-
-func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
+func collectInterfaces(bindIP string) ([]net.Interface, error) {
 	if bindIP != "" {
-		parsedIP, foundIface, err := resolveIP(bindIP)
+		_, iface, err := resolveIP(bindIP)
 		if err != nil {
 			return nil, fmt.Errorf("resolve IP: %w", err)
 		}
-		return []ifaceConfig{{ips: []net.IP{parsedIP}, iface: *foundIface}}, nil
+		return []net.Interface{*iface}, nil
 	}
 
 	ifaces, err := listLANInterfaces()
@@ -233,117 +218,94 @@ func collectIfaceConfigs(bindIP string) ([]ifaceConfig, error) {
 	if len(ifaces) == 0 {
 		return nil, fmt.Errorf("no suitable network interface found for mDNS")
 	}
-
-	var configs []ifaceConfig
-	for _, iface := range ifaces {
-		ips := interfaceIPs(&iface)
-		if len(ips) == 0 {
-			continue
-		}
-		configs = append(configs, ifaceConfig{ips: ips, iface: iface})
-	}
-	return configs, nil
+	return ifaces, nil
 }
 
-func Register(port int, bindIP string) (*ServerGroup, error) {
-	host, _ := os.Hostname()
-	info := []string{"xShare v1"}
+func collectIPs(bindIP string) []string {
+	if bindIP != "" {
+		return []string{bindIP}
+	}
+	ips, err := ListIPs()
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, info := range ips {
+		out = append(out, info.IP)
+	}
+	return out
+}
 
-	configs, err := collectIfaceConfigs(bindIP)
+func Register(port int, bindIP string) (*zeroconf.Server, error) {
+	host, _ := os.Hostname()
+
+	ifaces, err := collectInterfaces(bindIP)
 	if err != nil {
 		return nil, err
 	}
 
-	var servers []*mdns.Server
-	for _, cfg := range configs {
-		service, err := mdns.NewMDNSService(
-			host, ServiceName, "", "", port, cfg.ips, info,
-		)
-		if err != nil {
-			continue
-		}
-		server, err := mdns.NewServer(&mdns.Config{Zone: service, Iface: &cfg.iface})
-		if err != nil {
-			continue
-		}
-		servers = append(servers, server)
-		fmt.Printf("register on interface %s with ip %s\n", cfg.iface.Name, cfg.ips)
+	ips := collectIPs(bindIP)
+
+	server, err := zeroconf.RegisterProxy(
+		host,
+		ServiceName,
+		"local.",
+		port,
+		host+".",
+		ips,
+		[]string{"xShare v1"},
+		ifaces,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("zeroconf register: %w", err)
 	}
 
-	if len(servers) == 0 {
-		return nil, fmt.Errorf("failed to start mdns server on any interface")
-	}
-
-	return &ServerGroup{servers: servers}, nil
+	return server, nil
 }
 
 func Discover(timeout time.Duration, bindIP string) ([]Peer, error) {
-	var ifaces []net.Interface
-
-	if bindIP != "" {
-		_, iface, err := resolveIP(bindIP)
-		if err != nil {
-			return nil, fmt.Errorf("resolve IP: %w", err)
-		}
-		ifaces = []net.Interface{*iface}
-	} else {
-		lanIfaces, err := listLANInterfaces()
-		if err != nil {
-			return nil, fmt.Errorf("list interfaces: %w", err)
-		}
-		ifaces = lanIfaces
+	ifaces, err := collectInterfaces(bindIP)
+	if err != nil {
+		return nil, err
 	}
 
-	if len(ifaces) == 0 {
-		return nil, fmt.Errorf("no suitable network interface found for mDNS")
+	resolver, err := zeroconf.NewResolver(
+		zeroconf.SelectIfaces(ifaces),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("zeroconf resolver: %w", err)
 	}
 
-	entriesCh := make(chan *mdns.ServiceEntry, 32)
+	entries := make(chan *zeroconf.ServiceEntry)
 	var peers []Peer
-	var mu sync.Mutex
 
-	done := make(chan struct{})
 	go func() {
-		for entry := range entriesCh {
-			addr := entry.AddrV4
-			if addr == nil {
-				addr = entry.AddrV6
+		for entry := range entries {
+			var addr net.IP
+			if len(entry.AddrIPv4) > 0 {
+				addr = entry.AddrIPv4[0]
+			} else if len(entry.AddrIPv6) > 0 {
+				addr = entry.AddrIPv6[0]
 			}
 			if addr != nil {
-				mu.Lock()
 				peers = append(peers, Peer{
-					Name: entry.Host,
+					Name: entry.HostName,
 					Host: addr.String(),
 					Port: entry.Port,
 					Addr: fmt.Sprintf("%s:%d", addr, entry.Port),
 				})
-				mu.Unlock()
 			}
 		}
-		close(done)
 	}()
 
-	perIfaceTimeout := timeout / time.Duration(len(ifaces))
-	if perIfaceTimeout < 1*time.Second {
-		perIfaceTimeout = 1 * time.Second
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
-	for _, iface := range ifaces {
-		params := &mdns.QueryParam{
-			Service:             ServiceName,
-			Timeout:             perIfaceTimeout,
-			Entries:             entriesCh,
-			WantUnicastResponse: true,
-			Interface:           &iface,
-		}
-		mdns.Query(params)
+	err = resolver.Browse(ctx, ServiceName, "local.", entries)
+	if err != nil {
+		return nil, fmt.Errorf("zeroconf browse: %w", err)
 	}
-
-	func() {
-		defer func() { _ = recover() }()
-		close(entriesCh)
-	}()
-	<-done
+	<-ctx.Done()
 
 	seen := make(map[string]bool)
 	var result []Peer
