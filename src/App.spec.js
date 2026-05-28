@@ -1026,4 +1026,54 @@ describe('App.vue', () => {
       expect(Object.keys(listeners).length).toBe(0)
     })
   })
+
+  describe('About Button', () => {
+    it('renders About button in header', async () => {
+      const wrapper = await mountApp()
+      const aboutBtn = wrapper.findAll('button').find((b) => b.text().includes('关于'))
+      expect(aboutBtn).toBeTruthy()
+    })
+
+    it('toggles showAbout when About button is clicked', async () => {
+      const wrapper = await mountApp()
+      expect(wrapper.vm.showAbout).toBe(false)
+
+      const aboutBtn = wrapper.findAll('button').find((b) => b.text().includes('关于'))
+      await aboutBtn.trigger('click')
+      await nextTick()
+
+      expect(wrapper.vm.showAbout).toBe(true)
+    })
+
+    it('shows About component when showAbout is true', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.showAbout = true
+      await nextTick()
+
+      const aboutComponent = wrapper.findComponent({ name: 'About' })
+      expect(aboutComponent.exists()).toBe(true)
+      expect(aboutComponent.props('visible')).toBe(true)
+    })
+
+    it('hides About component when showAbout is false', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.showAbout = false
+      await nextTick()
+
+      const aboutComponent = wrapper.findComponent({ name: 'About' })
+      expect(aboutComponent.props('visible')).toBe(false)
+    })
+
+    it('hides About when close event is emitted', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.showAbout = true
+      await nextTick()
+
+      const aboutComponent = wrapper.findComponent({ name: 'About' })
+      await aboutComponent.vm.$emit('close')
+      await nextTick()
+
+      expect(wrapper.vm.showAbout).toBe(false)
+    })
+  })
 })

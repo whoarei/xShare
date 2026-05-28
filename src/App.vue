@@ -9,6 +9,10 @@ import { listen } from '@tauri-apps/api/event'
 import DeviceList from './components/DeviceList.vue'
 import FileSelector from './components/FileSelector.vue'
 import TransferProgress from './components/TransferProgress.vue'
+import About from './components/About.vue'
+
+// 关于页面状态
+const showAbout = ref(false)
 
 // 服务器状态
 const serverRunning = ref(false)
@@ -281,6 +285,7 @@ onUnmounted(() => {
         <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">v{{ appVersion }}</span>
       </div>
       <div class="flex items-center gap-4">
+        <button @click="showAbout = true" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">关于</button>
         <div class="flex items-center gap-2">
           <span
             class="w-2 h-2 rounded-full"
@@ -418,4 +423,5 @@ onUnmounted(() => {
       </main>
     </div>
   </div>
+  <About :visible="showAbout" @close="showAbout = false" />
 </template>
