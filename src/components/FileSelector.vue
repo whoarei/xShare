@@ -1,10 +1,11 @@
 <script setup>
+// 文件选择器组件 - 选择要发送的文件和目标设备
 defineProps({
-  selectedItems: { type: Array, default: () => [] },
-  selectedPeer: { type: String, default: null },
-  peers: { type: Array, default: () => [] },
-  sending: { type: Boolean, default: false },
-  canSend: { type: Boolean, default: false },
+  selectedItems: { type: Array, default: () => [] },    // 选中的文件列表
+  selectedPeer: { type: String, default: null },         // 选中的目标设备
+  peers: { type: Array, default: () => [] },             // 可用设备列表
+  sending: { type: Boolean, default: false },            // 是否正在发送
+  canSend: { type: Boolean, default: false },            // 是否可以发送
 })
 
 defineEmits(['update:selectedItems', 'update:selectedPeer', 'browse-files', 'browse-dir', 'remove-path', 'send'])

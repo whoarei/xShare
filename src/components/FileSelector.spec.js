@@ -1,3 +1,5 @@
+// FileSelector.vue 组件的单元测试
+// 测试范围：渲染状态、文件选择按钮、路径移除、设备下拉、发送按钮
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import FileSelector from './FileSelector.vue'

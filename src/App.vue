@@ -1,4 +1,5 @@
 <script setup>
+// xShare主界面组件
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -6,36 +7,45 @@ import DeviceList from './components/DeviceList.vue'
 import FileSelector from './components/FileSelector.vue'
 import TransferProgress from './components/TransferProgress.vue'
 
+// 服务器状态
 const serverRunning = ref(false)
 const serverPort = ref(9527)
 const serverDir = ref('./received')
 const serverOutput = ref([])
 
+// 网络接口配置
 const networkInterfaces = ref([])
 const selectedInterface = ref('')
 const availableIPs = ref([])
 const selectedIP = ref('')
 
+// 设备发现状态
 const peers = ref([])
 const discovering = ref(false)
 
+// 文件选择和发送状态
 const selectedItems = ref([])
 const selectedPeer = ref(null)
 const sending = ref(false)
 
+// 传输进度状态
 const transferActive = ref(false)
 const currentTask = ref(null)
 const progressItems = ref([])
 
+// 日志记录
 const logs = ref([])
 
+// 事件监听器清理函数
 let unlisteners = []
 
+// addLog 添加日志记录
 function addLog(msg, type = 'info') {
   logs.value.unshift({ time: new Date().toLocaleTimeString(), msg, type })
   if (logs.value.length > 200) logs.value.pop()
 }
 
+// startServer 启动文件接收服务器
 async function startServer() {
   try {
     const result = await invoke('start_server', {
@@ -50,6 +60,7 @@ async function startServer() {
   }
 }
 
+// stopServer 停止文件接收服务器
 async function stopServer() {
   try {
     const result = await invoke('stop_server')
@@ -60,6 +71,7 @@ async function stopServer() {
   }
 }
 
+// discoverPeers 发现局域网内的其他xShare设备
 async function discoverPeers() {
   discovering.value = true
   try {
@@ -79,6 +91,7 @@ async function discoverPeers() {
   }
 }
 
+// browseFiles 打开文件选择对话框
 async function browseFiles() {
   try {
     const path = await invoke('open_file_dialog')
@@ -90,6 +103,7 @@ async function browseFiles() {
   }
 }
 
+// browseDir 打开目录选择对话框
 async function browseDir() {
   try {
     const path = await invoke('open_dir_dialog')
@@ -101,10 +115,12 @@ async function browseDir() {
   }
 }
 
+// removePath 从选择列表中移除路径
 function removePath(index) {
   selectedItems.value.splice(index, 1)
 }
 
+// sendFiles 发送选中的文件到目标设备
 async function sendFiles() {
   if (!selectedPeer.value || selectedItems.value.length === 0) return
   sending.value = true
@@ -126,6 +142,7 @@ async function sendFiles() {
   }
 }
 
+// handleProgress 处理传输进度事件
 function handleProgress(payload) {
   try {
     const data = JSON.parse(payload)
@@ -151,6 +168,7 @@ function handleProgress(payload) {
   } catch {}
 }
 
+// handleServerEvent 处理服务器事件
 function handleServerEvent(payload) {
   try {
     const data = JSON.parse(payload)
@@ -177,20 +195,24 @@ function handleServerEvent(payload) {
   }
 }
 
+// handleServerError 处理服务器错误事件
 function handleServerError(payload) {
   addLog('Server error: ' + payload, 'error')
 }
 
+// handleTransferError 处理传输错误事件
 function handleTransferError(payload) {
   addLog('Transfer error: ' + payload, 'error')
 }
 
+// handleTransferComplete 处理传输完成事件
 function handleTransferComplete(payload) {
   addLog(`Transfer finished with code: ${payload.code || 0}`)
   sending.value = false
   transferActive.value = false
 }
 
+// listIPs 获取本机可用IP地址列表
 async function listIPs() {
   try {
     const output = await invoke('list_ips')
@@ -204,6 +226,7 @@ async function listIPs() {
   }
 }
 
+// formatSize 格式化文件大小显示
 function formatSize(bytes) {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -216,8 +239,10 @@ function formatSize(bytes) {
   return `${size.toFixed(1)} ${units[i]}`
 }
 
+// canSend 计算属性：是否可以发送文件
 const canSend = computed(() => !!selectedPeer.value && selectedItems.value.length > 0 && !sending.value)
 
+// onMounted 组件挂载时初始化事件监听
 onMounted(async () => {
   listIPs()
   unlisteners.push(
@@ -233,6 +258,7 @@ onMounted(async () => {
   )
 })
 
+// onUnmounted 组件卸载时清理事件监听
 onUnmounted(() => {
   unlisteners.forEach(fn => fn())
 })

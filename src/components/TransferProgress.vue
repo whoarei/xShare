@@ -1,13 +1,16 @@
 <script setup>
+// 传输进度组件 - 显示文件传输进度和状态
 import { computed } from 'vue'
 
 const props = defineProps({
-  active: { type: Boolean, default: false },
-  task: { type: Object, default: null },
-  items: { type: Array, default: () => [] },
+  active: { type: Boolean, default: false },   // 是否有活跃传输
+  task: { type: Object, default: null },        // 当前传输任务
+  items: { type: Array, default: () => [] },    // 传输进度列表
 })
 
+// 已完成文件数量
 const fileCount = computed(() => props.items.filter(i => i.kind === 'file' && i.done).length)
+// 当前正在传输的文件
 const currentFile = computed(() => {
   const files = props.items.filter(i => i.kind === 'file' && !i.done)
   return files.length > 0 ? files[files.length - 1] : null
@@ -15,6 +18,7 @@ const currentFile = computed(() => {
 
 const totalItems = computed(() => props.task?.item_count || 0)
 const completedItems = computed(() => fileCount.value)
+// 传输进度百分比
 const progressPercent = computed(() => {
   if (!totalItems.value || totalItems.value === 0) return 0
   return Math.round((completedItems.value / totalItems.value) * 100)

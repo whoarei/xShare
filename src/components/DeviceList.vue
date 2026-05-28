@@ -1,8 +1,9 @@
 <script setup>
+// 设备列表组件 - 显示发现的局域网设备
 defineProps({
-  peers: { type: Array, default: () => [] },
-  discovering: { type: Boolean, default: false },
-  selectedPeer: { type: String, default: null },
+  peers: { type: Array, default: () => [] },           // 发现的设备列表
+  discovering: { type: Boolean, default: false },       // 是否正在扫描
+  selectedPeer: { type: String, default: null },        // 选中的设备地址
 })
 
 defineEmits(['discover', 'update:selectedPeer'])

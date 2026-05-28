@@ -1,3 +1,5 @@
+// xShare Go引擎 - 局域网文件共享工具核心
+// 提供文件发送、接收、设备发现等功能
 package main
 
 import (
@@ -13,6 +15,7 @@ import (
 	"go-engine/pkg/transfer"
 )
 
+// main 程序入口，解析命令行参数并分发到对应子命令
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -37,6 +40,7 @@ func main() {
 	}
 }
 
+// printUsage 打印命令行使用说明
 func printUsage() {
 		fmt.Fprintf(os.Stderr, `xShare v1 - LAN file sharing tool
 
@@ -66,6 +70,7 @@ Options:
 `)
 }
 
+// getArg 从命令行参数中提取指定名称的值
 func getArg(args []string, name string, defaultVal string) string {
 	prefix := "--" + name + "="
 	for _, a := range args {
@@ -76,6 +81,7 @@ func getArg(args []string, name string, defaultVal string) string {
 	return defaultVal
 }
 
+// cmdServe 启动文件接收服务器
 func cmdServe(args []string) {
 	port := 9527
 	portStr := getArg(args, "port", "")
@@ -97,6 +103,7 @@ func cmdServe(args []string) {
 
 	bindIP := getArg(args, "ip", "")
 
+	// 注册mDNS服务，供其他设备发现
 	srv, err := discovery.Register(port, bindIP)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
@@ -114,6 +121,7 @@ func cmdServe(args []string) {
 		errCh <- startTCPServer(port, bindIP, absDir)
 	}()
 
+	// 等待服务器错误或中断信号
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -124,6 +132,7 @@ func cmdServe(args []string) {
 	}
 }
 
+// startTCPServer 启动TCP服务器监听文件传输请求
 func startTCPServer(port int, bindIP string, targetDir string) error {
 	receiver := transfer.NewReceiver(targetDir)
 	addr := fmt.Sprintf(":%d", port)
@@ -133,6 +142,7 @@ func startTCPServer(port int, bindIP string, targetDir string) error {
 	return receiver.ListenAndServe(addr)
 }
 
+// cmdDiscover 发现局域网内的其他xShare设备
 func cmdDiscover(args []string) {
 	timeoutStr := getArg(args, "timeout", "5")
 	timeoutSec := 5
@@ -153,6 +163,7 @@ func cmdDiscover(args []string) {
 	fmt.Println(string(result))
 }
 
+// cmdListIPs 列出本机所有可用的IP地址
 func cmdListIPs() {
 	ips, err := discovery.ListIPs()
 	if err != nil {
@@ -166,6 +177,7 @@ func cmdListIPs() {
 	fmt.Println(string(result))
 }
 
+// cmdListIfaces 列出本机所有网络接口信息
 func cmdListIfaces() {
 	ifaces, err := discovery.ListInterfaces()
 	if err != nil {
@@ -179,6 +191,7 @@ func cmdListIfaces() {
 	fmt.Println(string(result))
 }
 
+// cmdSend 发送文件或目录到指定peer
 func cmdSend(args []string) {
 	peer := getArg(args, "peer", "")
 	if peer == "" {
@@ -205,6 +218,7 @@ func cmdSend(args []string) {
 		os.Exit(1)
 	}
 
+	// 根据路径类型选择发送方式
 	if info.IsDir() {
 		if err := sender.SendDirectory(path); err != nil {
 			fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())

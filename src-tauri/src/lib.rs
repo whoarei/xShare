@@ -1,13 +1,16 @@
+// Tauri后端命令定义和Go引擎进程管理
 use std::sync::Mutex;
 use tauri::Emitter;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 
+// 服务器状态，存储Go引擎进程信息
 struct ServerState {
-    child: Mutex<Option<CommandChild>>,
-    port: Mutex<u16>,
+    child: Mutex<Option<CommandChild>>,  // Go引擎子进程
+    port: Mutex<u16>,                     // 服务器端口
 }
 
+// start_server 启动Go引擎文件接收服务器
 #[tauri::command]
 async fn start_server(
     state: tauri::State<'_, ServerState>,
@@ -16,6 +19,7 @@ async fn start_server(
     dir: String,
     ip: Option<String>,
 ) -> Result<String, String> {
+    // 停止已运行的服务器
     if let Some(child) = state.child.lock().unwrap().take() {
         let _ = child.kill();
     }
@@ -40,7 +44,7 @@ async fn start_server(
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    // Wait for the server to signal readiness (5s timeout)
+    // 等待服务器就绪信号（5秒超时）
     let app_handle = app.clone();
     let deadline = tokio::time::sleep(std::time::Duration::from_secs(5));
     tokio::pin!(deadline);
@@ -90,7 +94,7 @@ async fn start_server(
     *state.child.lock().unwrap() = Some(child);
     *state.port.lock().unwrap() = port;
 
-    // Continue listening for remaining events
+    // 继续监听剩余事件
     tauri::async_runtime::spawn(async move {
         use tauri_plugin_shell::process::CommandEvent;
         while let Some(event) = rx.recv().await {
@@ -119,6 +123,7 @@ async fn start_server(
     Ok(format!("Server started on port {}", port))
 }
 
+// stop_server 停止Go引擎服务器
 #[tauri::command]
 async fn stop_server(state: tauri::State<'_, ServerState>) -> Result<String, String> {
     if let Some(child) = state.child.lock().unwrap().take() {
@@ -129,11 +134,13 @@ async fn stop_server(state: tauri::State<'_, ServerState>) -> Result<String, Str
     }
 }
 
+// get_server_port 获取当前服务器端口
 #[tauri::command]
 async fn get_server_port(state: tauri::State<'_, ServerState>) -> Result<u16, String> {
     Ok(*state.port.lock().unwrap())
 }
 
+// discover_peers 发现局域网内的其他xShare设备
 #[tauri::command]
 async fn discover_peers(app: tauri::AppHandle, timeout: u64, ip: Option<String>) -> Result<String, String> {
     let sidecar = app
@@ -167,6 +174,7 @@ async fn discover_peers(app: tauri::AppHandle, timeout: u64, ip: Option<String>)
     }
 }
 
+// send_files 发送文件到指定peer
 #[tauri::command]
 async fn send_files(app: tauri::AppHandle, peer: String, path: String) -> Result<String, String> {
     let sidecar = app
@@ -183,6 +191,7 @@ async fn send_files(app: tauri::AppHandle, peer: String, path: String) -> Result
     let (tx, rx_done) = tokio::sync::oneshot::channel::<Result<i32, String>>();
     let mut tx = Some(tx);
 
+    // 监听传输事件并转发给前端
     tauri::async_runtime::spawn(async move {
         use tauri_plugin_shell::process::CommandEvent;
         while let Some(event) = rx.recv().await {
@@ -229,6 +238,7 @@ async fn send_files(app: tauri::AppHandle, peer: String, path: String) -> Result
     }
 }
 
+// list_ips 列出本机所有可用IP地址
 #[tauri::command]
 async fn list_ips(app: tauri::AppHandle) -> Result<String, String> {
     let sidecar = app
@@ -249,6 +259,7 @@ async fn list_ips(app: tauri::AppHandle) -> Result<String, String> {
     }
 }
 
+// open_file_dialog 打开文件选择对话框
 #[tauri::command]
 async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -259,6 +270,7 @@ async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, Strin
     Ok(path.map(|p| p.to_string()))
 }
 
+// open_dir_dialog 打开目录选择对话框
 #[tauri::command]
 async fn open_dir_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
@@ -269,6 +281,7 @@ async fn open_dir_dialog(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(path.map(|p| p.to_string()))
 }
 
+// run 初始化并运行Tauri应用
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()

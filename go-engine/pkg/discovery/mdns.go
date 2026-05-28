@@ -1,3 +1,4 @@
+// mDNS设备发现模块
 package discovery
 
 import (
@@ -11,35 +12,40 @@ import (
 	"github.com/grandcat/zeroconf"
 )
 
-const ServiceName = "_xshare._tcp"
+const ServiceName = "_xshare._tcp" // mDNS服务名称
 
+// Peer 发现的对端设备信息
 type Peer struct {
-	Name string `json:"name"`
-	Host string `json:"host"`
-	Port int    `json:"port"`
-	Addr string `json:"addr"`
+	Name string `json:"name"` // 主机名
+	Host string `json:"host"` // IP地址
+	Port int    `json:"port"` // 端口号
+	Addr string `json:"addr"` // 完整地址 host:port
 }
 
+// IPInfo IP地址信息
 type IPInfo struct {
-	IP     string `json:"ip"`
-	Iface  string `json:"iface"`
-	Family string `json:"family"`
+	IP     string `json:"ip"`     // IP地址
+	Iface  string `json:"iface"`  // 网络接口名称
+	Family string `json:"family"` // 地址族 v4/v6
 }
 
+// InterfaceInfo 网络接口详细信息
 type InterfaceInfo struct {
-	Name  string   `json:"name"`
-	Index int      `json:"index"`
-	MTU   int      `json:"mtu"`
-	Flags string   `json:"flags"`
-	MAC   string   `json:"mac"`
-	IPs   []IPInfo `json:"ips"`
+	Name  string   `json:"name"`  // 接口名称
+	Index int      `json:"index"` // 接口索引
+	MTU   int      `json:"mtu"`   // 最大传输单元
+	Flags string   `json:"flags"` // 接口标志
+	MAC   string   `json:"mac"`   // MAC地址
+	IPs   []IPInfo `json:"ips"`   // IP地址列表
 }
 
+// isValidUnicastIP 检查是否为有效的单播IP地址
 func isValidUnicastIP(ip net.IP) bool {
 	return !ip.IsLoopback() && !ip.IsMulticast() &&
 		!ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
 }
 
+// listLANInterfaces 列出可用的局域网网络接口
 func listLANInterfaces() ([]net.Interface, error) {
 	ifaces, err := net.Interfaces()
 	if err != nil {
@@ -62,6 +68,7 @@ func listLANInterfaces() ([]net.Interface, error) {
 	return out, nil
 }
 
+// interfaceIPs 获取网络接口的所有有效IP地址
 func interfaceIPs(iface *net.Interface) []net.IP {
 	addrs, err := iface.Addrs()
 	if err != nil {
@@ -81,6 +88,7 @@ func interfaceIPs(iface *net.Interface) []net.IP {
 	return ips
 }
 
+// ListIPs 列出本机所有可用的IP地址
 func ListIPs() ([]IPInfo, error) {
 	ifaces, err := listLANInterfaces()
 	if err != nil {
@@ -104,6 +112,7 @@ func ListIPs() ([]IPInfo, error) {
 	return out, nil
 }
 
+// flagToString 将网络接口标志转换为可读字符串
 func flagToString(flags net.Flags) string {
 	names := []string{}
 	if flags&net.FlagUp != 0 {
@@ -130,6 +139,7 @@ func flagToString(flags net.Flags) string {
 	return strings.Join(names, "|")
 }
 
+// ListInterfaces 列出本机所有网络接口详细信息
 func ListInterfaces() ([]InterfaceInfo, error) {
 	all, err := net.Interfaces()
 	if err != nil {
@@ -176,6 +186,7 @@ func ListInterfaces() ([]InterfaceInfo, error) {
 	return out, nil
 }
 
+// resolveIP 解析IP地址并找到对应的网络接口
 func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 	targetIP := net.ParseIP(ipStr)
 	if targetIP == nil {
@@ -202,6 +213,7 @@ func resolveIP(ipStr string) (net.IP, *net.Interface, error) {
 	return nil, nil, fmt.Errorf("IP %q not found on any interface", ipStr)
 }
 
+// collectInterfaces 收集要使用的网络接口
 func collectInterfaces(bindIP string) ([]net.Interface, error) {
 	if bindIP != "" {
 		_, iface, err := resolveIP(bindIP)
@@ -221,6 +233,7 @@ func collectInterfaces(bindIP string) ([]net.Interface, error) {
 	return ifaces, nil
 }
 
+// collectIPs 收集要使用的IP地址
 func collectIPs(bindIP string) []string {
 	if bindIP != "" {
 		return []string{bindIP}
@@ -236,6 +249,7 @@ func collectIPs(bindIP string) []string {
 	return out
 }
 
+// Register 注册mDNS服务，使其他设备可以发现本机
 func Register(port int, bindIP string) (*zeroconf.Server, error) {
 	host, _ := os.Hostname()
 
@@ -263,6 +277,7 @@ func Register(port int, bindIP string) (*zeroconf.Server, error) {
 	return server, nil
 }
 
+// Discover 发现局域网内的其他xShare设备
 func Discover(timeout time.Duration, bindIP string) ([]Peer, error) {
 	ifaces, err := collectInterfaces(bindIP)
 	if err != nil {
@@ -307,6 +322,7 @@ func Discover(timeout time.Duration, bindIP string) ([]Peer, error) {
 	}
 	<-ctx.Done()
 
+	// 去重处理
 	seen := make(map[string]bool)
 	var result []Peer
 	for _, p := range peers {

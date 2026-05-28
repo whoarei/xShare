@@ -1,3 +1,5 @@
+// TransferProgress.vue 组件的单元测试
+// 测试范围：激活状态、任务信息、进度条、当前文件、等待状态、项目列表、计算属性
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import TransferProgress from './TransferProgress.vue'

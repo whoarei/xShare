@@ -1,3 +1,5 @@
+// DeviceList.vue 组件的单元测试
+// 测试范围：渲染状态、发现按钮、设备列表交互
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DeviceList from './DeviceList.vue'

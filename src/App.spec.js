@@ -1,3 +1,5 @@
+// App.vue 组件的单元测试
+// 测试范围：服务器控制、设备发现、文件选择、发送流程、事件处理、日志系统
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
