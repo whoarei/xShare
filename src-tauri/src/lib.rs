@@ -3,6 +3,7 @@ use std::sync::Mutex;
 use tauri::Emitter;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
+use tauri::Manager;
 
 // 服务器状态，存储Go引擎进程信息
 struct ServerState {
@@ -296,6 +297,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+            }
+        }))
         .manage(ServerState {
             child: Mutex::new(None),
             port: Mutex::new(9527),
