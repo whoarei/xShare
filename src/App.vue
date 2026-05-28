@@ -122,6 +122,27 @@ async function browseDir() {
   }
 }
 
+// browseSaveDir 打开目录选择对话框用于选择保存目录
+async function browseSaveDir() {
+  if (transferActive.value) {
+    addLog('Cannot change directory during transfer', 'error')
+    return
+  }
+  try {
+    const path = await invoke('open_dir_dialog', { dir: serverDir.value })
+    if (path) {
+      serverDir.value = path
+      if (serverRunning.value) {
+        addLog('Directory changed, restarting server...', 'info')
+        await stopServer()
+        await startServer()
+      }
+    }
+  } catch (e) {
+    addLog('Directory dialog error: ' + e, 'error')
+  }
+}
+
 // removePath 从选择列表中移除路径
 function removePath(index) {
   selectedItems.value.splice(index, 1)
@@ -314,13 +335,23 @@ onUnmounted(() => {
                 placeholder="Port"
                 :disabled="serverRunning"
               />
-              <input
-                v-model="serverDir"
-                type="text"
-                class="input flex-1"
-                placeholder="Receive directory"
-                :disabled="serverRunning"
-              />
+              <div class="flex gap-1 flex-1">
+                <input
+                  v-model="serverDir"
+                  type="text"
+                  class="input flex-1"
+                  placeholder="Receive directory"
+                />
+                <button
+                  @click="browseSaveDir"
+                  class="btn-secondary px-2"
+                  title="Browse directory"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="flex gap-2">
               <button

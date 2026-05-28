@@ -272,12 +272,21 @@ async fn open_file_dialog(app: tauri::AppHandle) -> Result<Option<String>, Strin
 
 // open_dir_dialog 打开目录选择对话框
 #[tauri::command]
-async fn open_dir_dialog(app: tauri::AppHandle) -> Result<Option<String>, String> {
+async fn open_dir_dialog(app: tauri::AppHandle, dir: Option<String>) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
-    let path = app
-        .dialog()
-        .file()
-        .blocking_pick_folder();
+    let mut dialog = app.dialog().file();
+    if let Some(d) = dir {
+        let path = std::path::Path::new(&d);
+        let abs_path = if path.is_absolute() {
+            d
+        } else {
+            std::env::current_dir()
+                .map(|cwd| cwd.join(path).to_string_lossy().to_string())
+                .unwrap_or(d)
+        };
+        dialog = dialog.set_directory(abs_path);
+    }
+    let path = dialog.blocking_pick_folder();
     Ok(path.map(|p| p.to_string()))
 }
 

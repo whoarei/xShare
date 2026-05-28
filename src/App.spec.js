@@ -234,6 +234,98 @@ describe('App.vue', () => {
       expect(select.attributes('disabled')).toBeDefined()
       expect(portInput.attributes('disabled')).toBeDefined()
     })
+
+    it('allows editing receive directory when server is running', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.serverRunning = true
+      await nextTick()
+
+      const inputs = wrapper.findAll('input')
+      const dirInput = inputs.find((i) => i.attributes('placeholder') === 'Receive directory')
+      expect(dirInput.attributes('disabled')).toBeUndefined()
+    })
+
+    it('browse save directory button calls open_dir_dialog', async () => {
+      mockInvoke.mockImplementation((cmd) => {
+        if (cmd === 'list_ips') return Promise.resolve(JSON.stringify({ type: 'ips', ips: [] }))
+        if (cmd === 'open_dir_dialog') return Promise.resolve('/new/save/dir')
+        return Promise.resolve('{}')
+      })
+      const wrapper = await mountApp()
+
+      const browseBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Browse directory')
+      await browseBtn.trigger('click')
+      await flushPromises()
+      await nextTick()
+
+      expect(mockInvoke).toHaveBeenCalledWith('open_dir_dialog', { dir: './received' })
+      expect(wrapper.vm.serverDir).toBe('/new/save/dir')
+    })
+
+    it('browse save directory passes current serverDir to dialog', async () => {
+      mockInvoke.mockImplementation((cmd) => {
+        if (cmd === 'list_ips') return Promise.resolve(JSON.stringify({ type: 'ips', ips: [] }))
+        if (cmd === 'open_dir_dialog') return Promise.resolve('/selected')
+        return Promise.resolve('{}')
+      })
+      const wrapper = await mountApp()
+      wrapper.vm.serverDir = '/my/custom/dir'
+      await nextTick()
+
+      const browseBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Browse directory')
+      await browseBtn.trigger('click')
+      await flushPromises()
+      await nextTick()
+
+      expect(mockInvoke).toHaveBeenCalledWith('open_dir_dialog', { dir: '/my/custom/dir' })
+      expect(wrapper.vm.serverDir).toBe('/selected')
+    })
+
+    it('browse save directory restarts server when running', async () => {
+      mockInvoke.mockImplementation((cmd) => {
+        if (cmd === 'list_ips') return Promise.resolve(JSON.stringify({ type: 'ips', ips: [] }))
+        if (cmd === 'open_dir_dialog') return Promise.resolve('/new/dir')
+        if (cmd === 'stop_server') return Promise.resolve('ok')
+        if (cmd === 'start_server') return Promise.resolve('ok')
+        return Promise.resolve('{}')
+      })
+      const wrapper = await mountApp()
+      wrapper.vm.serverRunning = true
+      await nextTick()
+
+      const browseBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Browse directory')
+      await browseBtn.trigger('click')
+      await flushPromises()
+      await nextTick()
+
+      expect(wrapper.vm.serverDir).toBe('/new/dir')
+      expect(mockInvoke).toHaveBeenCalledWith('stop_server')
+      expect(mockInvoke).toHaveBeenCalledWith('start_server', {
+        port: 9527,
+        dir: '/new/dir',
+        ip: null,
+      })
+    })
+
+    it('browse save directory blocks change during transfer', async () => {
+      mockInvoke.mockImplementation((cmd) => {
+        if (cmd === 'list_ips') return Promise.resolve(JSON.stringify({ type: 'ips', ips: [] }))
+        if (cmd === 'open_dir_dialog') return Promise.resolve('/blocked/dir')
+        return Promise.resolve('{}')
+      })
+      const wrapper = await mountApp()
+      wrapper.vm.transferActive = true
+      await nextTick()
+
+      const browseBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Browse directory')
+      await browseBtn.trigger('click')
+      await flushPromises()
+      await nextTick()
+
+      expect(wrapper.vm.serverDir).toBe('./received')
+      const logs = getLogs(wrapper)
+      expect(logs.find((l) => l.msg.includes('Cannot change directory during transfer'))).toBeTruthy()
+    })
   })
 
   describe('Peer Discovery', () => {
