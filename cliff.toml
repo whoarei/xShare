@@ -1,0 +1,88 @@
+# git-cliff 配置文件
+# 文档: https://git-cliff.org/docs/configuration
+
+[changelog]
+# changelog 头部模板
+header = """
+# 更新日志\n
+所有重要更改都将记录在此文件中。\n
+格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，\n
+并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。\n\n
+"""
+
+# changelog body 模板（中文分类）
+body = """
+{% if version %}\
+    ## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}\
+{% else %}\
+    ## [未发布]\
+{% endif %}\n
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}\n
+    {% for commit in commits %}
+        - {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
+            {{ commit.message | upper_first | trim }}\
+            {% if commit.links %} ({{ commit.links | join(sep=", ") }}){% endif %}\
+            {% if commit.author.name %} — *{{ commit.author.name }}*{% endif %}\
+    {% endfor %}\n
+{% endfor %}\n
+"""
+
+# 页脚模板
+footer = ""
+
+# 从 changelog 中排除的 commit 模式
+exclude_commits = """
+"^docs: update changelog"
+"^chore\\(release\\):"
+"^release:"
+"""
+
+# 模板输出 trim
+trim = true
+
+# 按行分割提交信息
+split_commits = false
+
+[git]
+# conventional commits 解析配置
+conventional_commits = true
+
+# 过滤不解析的 commit
+filter_unconventional = true
+
+# commit 解析时的分隔符
+split_commits = false
+
+# 提交解析的正则表达式
+commit_parsers = [
+    { message = "^feat", group = "✨ 新功能 (Features)" },
+    { message = "^fix", group = "🐛 修复 (Bug Fixes)" },
+    { message = "^refactor", group = "♻️ 重构 (Refactoring)" },
+    { message = "^perf", group = "⚡ 性能 (Performance)" },
+    { message = "^docs", group = "📝 文档 (Documentation)" },
+    { message = "^test", group = "✅ 测试 (Tests)" },
+    { message = "^ci", group = "🔧 CI/CD" },
+    { message = "^chore", group = "📦 杂项 (Miscellaneous)" },
+    { message = "^style", group = "🎨 样式 (Styling)" },
+    { message = "^build", group = "🏗️ 构建 (Build)" },
+    { message = "^revert", group = "⏪ 回滚 (Revert)" },
+]
+
+# 保护匹配的 commit 不被过滤
+protect_breaking_commits = false
+
+# 按 tag 过滤提交
+filter_commits = false
+
+# tag 匹配模式
+tag_pattern = "v[0-9]*"
+
+# 忽略的 tag 模式
+ignore_tags = ""
+
+# 按拓扑排序提交
+topo_order = false
+
+# 按时间排序提交
+sort_commits = "oldest"

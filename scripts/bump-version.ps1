@@ -63,3 +63,14 @@ if (Test-Path $tauriPath) {
 }
 
 Write-Host "`nAll version files updated to $Version"
+
+# --- Generate CHANGELOG.md ---
+$cliffInstalled = Get-Command git-cliff -ErrorAction SilentlyContinue
+if ($cliffInstalled) {
+    Write-Host "`nGenerating CHANGELOG.md..."
+    & git-cliff --tag "v$Version" -o (Join-Path $root "CHANGELOG.md")
+    Write-Host "[OK] CHANGELOG.md"
+} else {
+    Write-Warning "git-cliff not found. Skipping changelog generation."
+    Write-Host "Install it: cargo install git-cliff"
+}

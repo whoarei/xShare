@@ -63,3 +63,14 @@ fi
 
 echo ""
 echo "All version files updated to $VERSION"
+
+# --- Generate CHANGELOG.md ---
+if command -v git-cliff &>/dev/null; then
+    echo ""
+    echo "Generating CHANGELOG.md..."
+    git-cliff --tag "v$VERSION" -o "$ROOT/CHANGELOG.md"
+    echo "[OK] CHANGELOG.md"
+else
+    echo "Warning: git-cliff not found. Skipping changelog generation." >&2
+    echo "Install it: cargo install git-cliff" >&2
+fi
