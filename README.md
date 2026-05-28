@@ -206,6 +206,7 @@ npm version major          # 1.0.0 → 2.0.0
 # 3. 提交并推送
 git add -A
 git commit -m "release: v1.1.0"
+git tag v1.1.0
 git push --tags
 ```
 
