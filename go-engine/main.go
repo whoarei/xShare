@@ -72,7 +72,7 @@ Options:
   --peer=ADDR          Peer address in host:port format
   --timeout=SECONDS    Discovery timeout in seconds (default: 5)
   --ip=ADDR            IP address to bind and advertise (default: all interfaces)
-`)
+`, version)
 }
 
 // getArg 从命令行参数中提取指定名称的值
