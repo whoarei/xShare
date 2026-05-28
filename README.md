@@ -17,22 +17,7 @@
 └──────────────────────────────────────────┘
 ```
 
-### xShare 协议 (v1)
 
-| 字节偏移 | 字段 | 类型 | 说明 |
-|:---|:---|:---|:---|
-| 0-3 | Magic | uint32 | 固定 `0x58534852` (xSHR) |
-| 4 | Version | uint8 | 当前 `0x01` |
-| 5 | Type | uint8 | 见下表 |
-| 6-13 | Length | uint64 | Payload 字节长度 |
-
-| Type | 名称 | Payload |
-|:---|:---|:---|
-| `0x01` | TaskInfo | JSON: `{id, total_size, item_count}` |
-| `0x02` | FileHeader | JSON: `{path, size, mode, hash}` |
-| `0x03` | Chunk | Binary: 原始文件数据 |
-| `0x04` | Ack | JSON: `{status, code, msg}` |
-| `0x05` | Done | 空载荷 |
 ## 项目结构
 
 ```
@@ -40,6 +25,11 @@ xShare/
 ├── docs/
 │   ├── xShare.md            # 技术设计文档
 │   └── TESTING.md           # 测试说明文档
+├── scripts/                 # 构建与工具脚本
+│   ├── build.sh             # 生产构建 (Linux/macOS)
+│   ├── build.ps1            # 生产构建 (Windows)
+│   ├── bump-version.sh      # 版本号同步 (Linux/macOS)
+│   └── bump-version.ps1     # 版本号同步 (Windows)
 ├── go-engine/               # Go 核心引擎
 │   ├── main.go              # CLI 入口 (serve / discover / send)
 │   └── pkg/
@@ -61,7 +51,7 @@ xShare/
 │       ├── DeviceList.vue   # 设备列表 + 发现
 │       ├── FileSelector.vue # 文件选择 + 发送
 │       └── TransferProgress.vue # 传输进度
-├── package.json
+├── package.json             # 版本号权威来源
 ├── vite.config.js
 └── tailwind.config.js
 ```
@@ -134,7 +124,10 @@ cd go-engine && go test ./... -v
 
 ### 生产构建
 
-最终应用由前端 + Tauri 外壳 + Go sidecar 组成，`npm run tauri build` 将三者打包为安装包。
+最终应用由前端 + Tauri 外壳 + Go sidecar 组成，`npm run tauri build` 将三者打包为安装包:
+
+1. 编译 Go Sidecar
+2. 构建 Tauri 应用
 
 #### 1. 编译 Go Sidecar
 
@@ -154,6 +147,7 @@ go build -o ../src-tauri/binaries/go-engine-$(go env GOOS)-$(go env GOARCH) .
 
 # 交叉编译示例
 GOOS=windows GOARCH=amd64 go build -o ../src-tauri/binaries/go-engine-x86_64-pc-windows-msvc.exe .
+GOOS=linux GOARCH=amd64 go build -o ../src-tauri/binaries/go-engine-x86_64-unknown-linux-gnu
 GOOS=darwin  GOARCH=amd64 go build -o ../src-tauri/binaries/go-engine-x86_64-apple-darwin .
 GOOS=darwin  GOARCH=arm64 go build -o ../src-tauri/binaries/go-engine-aarch64-apple-darwin .
 ```
@@ -175,32 +169,70 @@ npm run tauri build
 #### 3. 一键构建脚本
 
 ```bash
-#!/bin/bash
-set -e
-PLATFORM="${1:-$(go env GOOS)}"
-ARCH="${2:-$(go env GOARCH)}"
+# Linux / macOS
+./scripts/build.sh [linux|windows|darwin] [arch]
 
-case "$PLATFORM" in
-    linux)   TARGET="x86_64-unknown-linux-gnu";    EXT="" ;;
-    windows) TARGET="x86_64-pc-windows-msvc";       EXT=".exe" ;;
-    darwin)  TARGET="x86_64-apple-darwin";          EXT="" ;;
-    *) echo "Unknown platform: $PLATFORM"; exit 1 ;;
-esac
-
-echo "=== 1/3 编译 Go sidecar ($TARGET) ==="
-cd go-engine && GOOS="$PLATFORM" GOARCH="$ARCH" go build -o "../src-tauri/binaries/go-engine-$TARGET$EXT" . && cd ..
-
-echo "=== 2/3 安装前端依赖 ==="
-npm install --silent
-
-echo "=== 3/3 构建 Tauri 安装包 ==="
-npm run tauri build
-
-echo "=== 完成 ==="
-ls -lh src-tauri/target/release/bundle/*/ 2>/dev/null || true
+# Windows (PowerShell)
+.\scripts\build.ps1 [windows|linux|darwin] [arch]
 ```
 
-用法：`./build.sh linux | windows | darwin`
+脚本自动从 `package.json` 读取版本号，通过 `-ldflags` 注入 Go 二进制，并调用 `npm run tauri build`。
+
+### 版本管理
+
+项目使用 **单一事实来源 (Single Source of Truth)** 策略管理版本号：
+
+| 位置 | 文件 | 说明 |
+|:---|:---|:---|
+| 前端 | `package.json` | **权威来源**，`npm version` 管理 |
+| Rust | `src-tauri/Cargo.toml` | 由同步脚本从 package.json 复制 |
+| Tauri | `src-tauri/tauri.conf.json` | 由同步脚本从 package.json 复制 |
+| Go 引擎 | 编译时 `-ldflags` 注入 | 构建脚本自动从 package.json 读取 |
+| UI 展示 | `import.meta.env.VITE_APP_VERSION` | Vite 构建时注入，`App.vue` 动态读取 |
+
+#### 发版流程
+
+```bash
+# 1. 更新版本号 (选择一种)
+npm version patch          # 1.0.0 → 1.0.1 (自动改 package.json + git commit + tag)
+npm version minor          # 1.0.0 → 1.1.0
+npm version major          # 1.0.0 → 2.0.0
+# 或手动编辑 package.json 的 version 字段
+
+# 2. 同步到 Cargo.toml 和 tauri.conf.json
+.\scripts\bump-version.ps1          # Windows
+./scripts/bump-version.sh           # Linux / macOS
+
+# 3. 提交并推送
+git add -A
+git commit -m "release: v1.1.0"
+git push --tags
+```
+
+#### 版本同步脚本
+
+```bash
+# 从 package.json 读取版本号并同步到所有配置文件
+.\scripts\bump-version.ps1          # Windows
+./scripts/bump-version.sh           # Linux / macOS
+
+# 也可直接指定版本号
+.\scripts\bump-version.ps1 -Version 1.2.0
+./scripts/bump-version.sh 1.2.0
+```
+
+#### 版本号流转
+
+```
+package.json (权威来源)
+    │
+    ├── bump-version.ps1/sh ──→ Cargo.toml
+    │                       ──→ tauri.conf.json
+    │
+    ├── vite.config.js ──→ VITE_APP_VERSION ──→ App.vue (UI 展示)
+    │
+    └── build.ps1/sh -ldflags ──→ go-engine 二进制 (runtime)
+```
 
 ### CI/CD
 
@@ -227,10 +259,6 @@ pull_request
 
 推送 `v*` 标签即可触发多平台构建，产物自动发布到 GitHub Release。
 
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
 
 流水线自动执行：
 

@@ -15,6 +15,9 @@ import (
 	"go-engine/pkg/transfer"
 )
 
+// version 应用版本号，编译时通过 -ldflags "-X main.version=x.y.z" 注入
+var version = "dev"
+
 // main 程序入口，解析命令行参数并分发到对应子命令
 func main() {
 	if len(os.Args) < 2 {
@@ -33,6 +36,8 @@ func main() {
 		cmdListIPs()
 	case "list-ifaces":
 		cmdListIfaces()
+	case "--version", "-v", "version":
+		fmt.Printf("xShare go-engine v%s\n", version)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -42,7 +47,7 @@ func main() {
 
 // printUsage 打印命令行使用说明
 func printUsage() {
-		fmt.Fprintf(os.Stderr, `xShare v1 - LAN file sharing tool
+		fmt.Fprintf(os.Stderr, `xShare v%s - LAN file sharing tool
 
 Usage:
   go-engine serve --port=PORT [--dir=DIR] [--ip=ADDR]

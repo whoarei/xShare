@@ -32,6 +32,14 @@ cargo check --manifest-path src-tauri/Cargo.toml
 cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 ```
 
+Version management (from repo root):
+```bash
+.\scripts\bump-version.ps1            # Windows — sync version to Cargo.toml + tauri.conf.json
+./scripts/bump-version.sh             # Linux/macOS
+.\scripts\build.ps1                   # Windows — full build with version injection
+./scripts/build.sh                    # Linux/macOS
+```
+
 ## Build prerequisites
 
 - **Go 1.21+** — `go-engine/go.mod`
@@ -90,6 +98,17 @@ Binary protocol with 14-byte fixed header (big-endian). All payloads are either 
 | `src-tauri/capabilities/default.json` | Permissions for shell & dialog plugins |
 | `go-engine/pkg/protocol/` | Header codec, message types, todo tests |
 | `go-engine/pkg/transfer/` | Sender/Receiver that implement the protocol flow |
+| `package.json` | **Version single source of truth** |
+| `scripts/bump-version.ps1` | Sync version from package.json to Cargo.toml + tauri.conf.json |
+| `scripts/build.ps1` | Full build with Go version injection via `-ldflags` |
+
+## Version management
+
+- **Single source of truth:** `package.json` `"version"` field
+- **Sync:** Run `scripts/bump-version.ps1` or `scripts/bump-version.sh` to propagate to `Cargo.toml` and `tauri.conf.json`
+- **Go binary:** Version injected at build time via `-ldflags "-X main.version=x.y.z"` — use `scripts/build.ps1`
+- **Frontend:** Vite injects `import.meta.env.VITE_APP_VERSION` from `package.json` at build time (see `vite.config.js`)
+- **UI display:** `src/App.vue` reads `import.meta.env.VITE_APP_VERSION` to show version in header
 
 ## Gotchas
 

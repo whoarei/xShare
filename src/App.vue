@@ -1,6 +1,9 @@
 <script setup>
 // xShare主界面组件
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
+
+// 应用版本号 (由 vite.config.js 在构建时注入)
+const appVersion = import.meta.env.VITE_APP_VERSION || 'dev'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import DeviceList from './components/DeviceList.vue'
@@ -275,7 +278,7 @@ onUnmounted(() => {
           </div>
           <h1 class="text-xl font-bold text-gray-800">xShare</h1>
         </div>
-        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">v1.0</span>
+        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">v{{ appVersion }}</span>
       </div>
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
