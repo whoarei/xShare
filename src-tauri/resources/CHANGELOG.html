@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>xShare - 更新日志</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1f2937;
+    line-height: 1.6;
+    padding: 24px;
+    background: #fff;
+  }
+  h1 { font-size: 1.5rem; margin-bottom: 16px; color: #111827; }
+  h2 { font-size: 1.25rem; margin: 24px 0 12px; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 6px; }
+  h3 { font-size: 1rem; margin: 16px 0 8px; color: #374151; }
+  ul { padding-left: 20px; margin: 8px 0; }
+  li { margin: 4px 0; font-size: 0.875rem; }
+  code { font-family: "Cascadia Code", "Fira Code", Consolas, monospace; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; font-size: 0.85em; }
+  a { color: #2563eb; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { font-weight: 600; }
+  em { font-style: normal; color: #6b7280; }
+</style>
+</head>
+<body>
+<h1>更新日志</h1>
+<p>所有重要更改都将记录在此文件中。</p>
+<p>格式基于 <a href="https://keepachangelog.com/zh-CN/1.0.0/">Keep a Changelog</a>，</p>
+<p>并且本项目遵循 <a href="https://semver.org/lang/zh-CN/">语义化版本控制</a>。</p>
+<h2>[0.2.0] - 2026-05-28</h2>
+<h3>✨ 新功能 (Features)</h3>
+<ul>
+<li><strong>ui:</strong> Add About modal with version info and tech stack — <em>libb</em></li>
+<li><strong>ui:</strong> Add browse button for save directory — <em>libb</em></li>
+<li><strong>tauri:</strong> 限制应用为单实例 — <em>libb</em></li>
+<li><strong>scripts:</strong> Add git-cliff changelog generation — <em>libb</em></li>
+<li><strong>changelog:</strong> Embed changelog viewer in About dialog — <em>libb</em></li>
+</ul>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li><strong>go-engine:</strong> Fix usage print — <em>libb</em></li>
+</ul>
+<h2>[0.2.0] - 2026-05-28</h2>
+<h3>Release</h3>
+<ul>
+<li>V0.2.0 — <em>libb</em></li>
+</ul>
+<h3>♻️ 重构 (Refactoring)</h3>
+<ul>
+<li><strong>discovery:</strong> Unify Register code path via collectIfaceConfigs — <em>libb</em></li>
+</ul>
+<h3>✨ 新功能 (Features)</h3>
+<ul>
+<li><strong>discovery:</strong> Add list-ifaces command to show all network interfaces — <em>libb</em></li>
+<li><strong>scripts:</strong> Unify version management with single source of truth — <em>libb</em></li>
+</ul>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li><strong>discovery:</strong> Bind mDNS to all LAN interfaces instead of system default — <em>libb</em></li>
+<li><strong>discovery:</strong> Replace hashicorp/mdns with grandcat/zeroconf to fix Windows multi-NIC mDNS — <em>libb</em></li>
+<li><strong>version:</strong> Fix wrong version string — <em>libb</em></li>
+</ul>
+<h3>📝 文档 (Documentation)</h3>
+<ul>
+<li>为代码和测试用例添加简洁注释 — <em>libb</em></li>
+</ul>
+<h3>📦 杂项 (Miscellaneous)</h3>
+<ul>
+<li>Ignore src-tauri/gen/ build artifacts — <em>libb</em></li>
+</ul>
+<h2>[0.1.8] - 2026-05-20</h2>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li><strong>ci:</strong> Use npm install instead of npm ci for cross-npm-version compat — <em>libb</em></li>
+</ul>
+<h2>[0.1.7] - 2026-05-20</h2>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li>Regenerate package-lock.json to include transitive esbuild deps — <em>libb</em></li>
+</ul>
+<h2>[0.1.6] - 2026-05-20</h2>
+<h3>✨ 新功能 (Features)</h3>
+<ul>
+<li>IP-based binding, single file send, and remove Mkdir protocol type — <em>libb</em></li>
+</ul>
+<h2>[0.1.5] - 2026-05-14</h2>
+<h3>✨ 新功能 (Features)</h3>
+<ul>
+<li>Update app icons and sync config — <em>libb</em></li>
+</ul>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li>Close entriesCh with recover to prevent deadlock on UDP6 failure — <em>libb</em></li>
+</ul>
+<h2>[0.1.4] - 2026-05-14</h2>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li>Prevent deadlock in discovery when mdns.Query fails — <em>libb</em></li>
+</ul>
+<h3>📦 杂项 (Miscellaneous)</h3>
+<ul>
+<li>Add GitHub issue templates — <em>libb</em></li>
+</ul>
+<h2>[0.1.2] - 2026-05-14</h2>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li>Fix rust build error — <em>libb</em></li>
+</ul>
+<h2>[0.1.1] - 2026-05-14</h2>
+<h3>🐛 修复 (Bug Fixes)</h3>
+<ul>
+<li>Fix releaseName — <em>libb</em></li>
+</ul>
+
+</body>
+</html>

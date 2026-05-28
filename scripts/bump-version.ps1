@@ -70,6 +70,9 @@ if ($cliffInstalled) {
     Write-Host "`nGenerating CHANGELOG.md..."
     & git-cliff --tag "v$Version" -o (Join-Path $root "CHANGELOG.md")
     Write-Host "[OK] CHANGELOG.md"
+
+    Write-Host "Rendering CHANGELOG.html..."
+    & node (Join-Path $root "scripts\render-changelog.mjs")
 } else {
     Write-Warning "git-cliff not found. Skipping changelog generation."
     Write-Host "Install it: cargo install git-cliff"

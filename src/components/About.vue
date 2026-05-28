@@ -6,7 +6,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'show-changelog'])
 
 const appVersion = import.meta.env.VITE_APP_VERSION || 'dev'
 
@@ -76,6 +76,7 @@ function close() {
               </div>
             </div>
             <p class="text-xs text-gray-400">Copyright © 2024 xShare Contributors</p>
+            <button @click="emit('show-changelog')" class="text-xs text-primary-600 hover:text-primary-700 mt-2 underline">查看更新日志</button>
           </div>
           <div class="border-t border-gray-100 px-6 py-4">
             <button @click="close" class="btn-primary w-full">关闭</button>

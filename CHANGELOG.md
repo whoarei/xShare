@@ -16,6 +16,8 @@
 - **ui:** Add About modal with version info and tech stack — *libb*
 - **ui:** Add browse button for save directory — *libb*
 - **tauri:** 限制应用为单实例 — *libb*
+- **scripts:** Add git-cliff changelog generation — *libb*
+- **changelog:** Embed changelog viewer in About dialog — *libb*
 
 
 ### 🐛 修复 (Bug Fixes)

@@ -70,6 +70,9 @@ if command -v git-cliff &>/dev/null; then
     echo "Generating CHANGELOG.md..."
     git-cliff --tag "v$VERSION" -o "$ROOT/CHANGELOG.md"
     echo "[OK] CHANGELOG.md"
+
+    echo "Rendering CHANGELOG.html..."
+    node "$ROOT/scripts/render-changelog.mjs"
 else
     echo "Warning: git-cliff not found. Skipping changelog generation." >&2
     echo "Install it: cargo install git-cliff" >&2

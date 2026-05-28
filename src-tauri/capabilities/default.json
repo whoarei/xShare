@@ -9,6 +9,8 @@
     "shell:allow-spawn",
     "shell:allow-stdin-write",
     "shell:allow-kill",
-    "dialog:default"
+    "dialog:default",
+    "fs:default",
+    "fs:allow-resource-read-recursive"
   ]
 }

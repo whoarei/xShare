@@ -10,9 +10,11 @@ import DeviceList from './components/DeviceList.vue'
 import FileSelector from './components/FileSelector.vue'
 import TransferProgress from './components/TransferProgress.vue'
 import About from './components/About.vue'
+import Changelog from './components/Changelog.vue'
 
 // 关于页面状态
 const showAbout = ref(false)
+const showChangelog = ref(false)
 
 // 服务器状态
 const serverRunning = ref(false)
@@ -454,5 +456,6 @@ onUnmounted(() => {
       </main>
     </div>
   </div>
-  <About :visible="showAbout" @close="showAbout = false" />
+  <About :visible="showAbout" @close="showAbout = false" @show-changelog="showAbout = false; showChangelog = true" />
+  <Changelog :visible="showChangelog" @close="showChangelog = false" />
 </template>

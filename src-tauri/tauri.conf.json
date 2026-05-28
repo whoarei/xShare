@@ -37,6 +37,9 @@
     ],
     "externalBin": [
       "binaries/go-engine"
+    ],
+    "resources": [
+      "resources/*"
     ]
   }
 }
