@@ -74,7 +74,8 @@ defineExpose({
   downloaded,
   checking,
   error,
-  noUpdate
+  noUpdate,
+  newVersion
 })
 </script>
 

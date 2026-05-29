@@ -1168,5 +1168,14 @@ describe('App.vue', () => {
 
       expect(wrapper.vm.showAbout).toBe(false)
     })
+
+    it('passes newVersion from updateChecker to About component', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.showAbout = true
+      await nextTick()
+
+      const aboutComponent = wrapper.findComponent({ name: 'About' })
+      expect(aboutComponent.props('newVersion')).toBe('')
+    })
   })
 })

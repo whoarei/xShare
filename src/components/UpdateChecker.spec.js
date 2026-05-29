@@ -80,6 +80,11 @@ describe('UpdateChecker.vue', () => {
       expect(wrapper.vm.noUpdate).toBe(false)
     })
 
+    it('exposes reactive newVersion', () => {
+      const wrapper = factory()
+      expect(wrapper.vm.newVersion).toBe('')
+    })
+
     it('exposes checkForUpdate method', () => {
       const wrapper = factory()
       expect(typeof wrapper.vm.checkForUpdate).toBe('function')
