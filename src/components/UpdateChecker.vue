@@ -35,9 +35,12 @@ async function checkForUpdate(silent = true) {
       noUpdate.value = true
     }
   } catch (e) {
+    console.error('[UpdateChecker] Check for update failed:', e)
     const msg = e?.message || String(e)
     if (msg.includes('timeout') || msg.includes('timed out')) {
       error.value = '网络超时，请检查网络连接或代理设置'
+    } else if (msg.includes('release JSON') || msg.includes('404')) {
+      error.value = '未找到可用的更新源，请确认已发布包含 latest.json 的版本'
     } else {
       error.value = msg || '检查更新失败'
     }

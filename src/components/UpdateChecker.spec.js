@@ -206,6 +206,15 @@ describe('UpdateChecker.vue', () => {
       expect(wrapper.vm.error).toBe('网络超时，请检查网络连接或代理设置')
     })
 
+    it('shows specific message for missing release JSON errors', async () => {
+      mockCheck.mockRejectedValue(new Error('Could not fetch a valid release JSON'))
+      const wrapper = factory()
+
+      await wrapper.vm.checkForUpdate(false)
+
+      expect(wrapper.vm.error).toBe('未找到可用的更新源，请确认已发布包含 latest.json 的版本')
+    })
+
     it('shows timeout message for "timeout" keyword', async () => {
       mockCheck.mockRejectedValue(new Error('connection timeout'))
       const wrapper = factory()
