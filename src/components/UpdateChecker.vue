@@ -19,7 +19,7 @@ async function checkForUpdate(silent = true) {
   error.value = ''
   noUpdate.value = false
   try {
-    const update = await check()
+    const update = await check({ timeout: 30000 })
     if (update) {
       updateAvailable.value = true
       newVersion.value = update.version
@@ -27,7 +27,7 @@ async function checkForUpdate(silent = true) {
       updateInstance = update
       if (!downloaded.value) {
         downloading.value = true
-        await update.download(() => {})
+        await update.download(() => {}, { timeout: 60000 })
         downloading.value = false
         downloaded.value = true
       }
@@ -35,7 +35,12 @@ async function checkForUpdate(silent = true) {
       noUpdate.value = true
     }
   } catch (e) {
-    error.value = e?.message || String(e) || '检查更新失败'
+    const msg = e?.message || String(e)
+    if (msg.includes('timeout') || msg.includes('timed out')) {
+      error.value = '网络超时，请检查网络连接或代理设置'
+    } else {
+      error.value = msg || '检查更新失败'
+    }
   } finally {
     checking.value = false
   }
