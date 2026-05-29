@@ -1177,5 +1177,20 @@ describe('App.vue', () => {
       const aboutComponent = wrapper.findComponent({ name: 'About' })
       expect(aboutComponent.props('newVersion')).toBe('')
     })
+
+    it('calls installAndRestart when install-update event is emitted', async () => {
+      const wrapper = await mountApp()
+      wrapper.vm.showAbout = true
+      await nextTick()
+
+      const mockInstallAndRestart = vi.fn()
+      wrapper.vm.updateChecker = { installAndRestart: mockInstallAndRestart }
+      await nextTick()
+
+      const aboutComponent = wrapper.findComponent({ name: 'About' })
+      await aboutComponent.vm.$emit('install-update')
+
+      expect(mockInstallAndRestart).toHaveBeenCalled()
+    })
   })
 })

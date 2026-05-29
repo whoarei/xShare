@@ -70,6 +70,7 @@ provide('updateChecker', {
 
 defineExpose({
   checkForUpdate,
+  installAndRestart,
   updateAvailable,
   downloaded,
   checking,

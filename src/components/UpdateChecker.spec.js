@@ -89,6 +89,11 @@ describe('UpdateChecker.vue', () => {
       const wrapper = factory()
       expect(typeof wrapper.vm.checkForUpdate).toBe('function')
     })
+
+    it('exposes installAndRestart method', () => {
+      const wrapper = factory()
+      expect(typeof wrapper.vm.installAndRestart).toBe('function')
+    })
   })
 
   describe('checkForUpdate - update available', () => {
@@ -283,6 +288,30 @@ describe('UpdateChecker.vue', () => {
 
       resolveDownload()
       await promise
+    })
+  })
+
+  describe('installAndRestart', () => {
+    it('calls install and relaunch when updateInstance exists', async () => {
+      const mockInstall = vi.fn().mockResolvedValue(undefined)
+      const update = createMockUpdate({ install: mockInstall })
+      mockCheck.mockResolvedValue(update)
+
+      const { relaunch } = await import('@tauri-apps/plugin-process')
+      relaunch.mockResolvedValue(undefined)
+
+      const wrapper = factory()
+      await wrapper.vm.checkForUpdate(true)
+      await wrapper.vm.installAndRestart()
+
+      expect(mockInstall).toHaveBeenCalled()
+      expect(relaunch).toHaveBeenCalled()
+    })
+
+    it('does nothing when no updateInstance', async () => {
+      const wrapper = factory()
+      // 不应该抛出错误
+      await wrapper.vm.installAndRestart()
     })
   })
 })
