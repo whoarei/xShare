@@ -197,6 +197,8 @@ npm run tauri build
 npm version patch          # 1.0.0 → 1.0.1 (自动改 package.json + git commit + tag)
 npm version minor          # 1.0.0 → 1.1.0
 npm version major          # 1.0.0 → 2.0.0
+# 如果不需要提交，创建tag
+npm version minor --no-git-tag-version
 # 或手动编辑 package.json 的 version 字段
 
 # 2. 同步到 Cargo.toml 和 tauri.conf.json
