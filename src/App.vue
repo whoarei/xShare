@@ -22,6 +22,10 @@ const serverPort = ref(9527)
 const serverDir = ref('./received')
 const serverOutput = ref([])
 
+// 保存目录历史记录
+const saveDirHistory = ref([])
+const showHistory = ref(false)
+
 // 网络接口配置
 const networkInterfaces = ref([])
 const selectedInterface = ref('')
@@ -52,6 +56,58 @@ let unlisteners = []
 function addLog(msg, type = 'info') {
   logs.value.unshift({ time: new Date().toLocaleTimeString(), msg, type })
   if (logs.value.length > 200) logs.value.pop()
+}
+
+// loadSettings 加载应用设置
+async function loadSettings() {
+  try {
+    const settings = await invoke('load_settings')
+    if (settings.saveDir) serverDir.value = settings.saveDir
+    saveDirHistory.value = settings.saveDirHistory || []
+  } catch (e) {
+    addLog('Failed to load settings: ' + e, 'warn')
+  }
+}
+
+// saveSettings 保存应用设置
+async function saveSettings() {
+  try {
+    await invoke('save_settings', {
+      saveDir: serverDir.value,
+      history: saveDirHistory.value
+    })
+  } catch (e) {
+    addLog('Failed to save settings: ' + e, 'warn')
+  }
+}
+
+// addToHistory 添加目录到历史记录
+function addToHistory(path) {
+  const now = new Date().toISOString()
+  const existing = saveDirHistory.value.findIndex(h => h.path === path)
+  if (existing >= 0) {
+    saveDirHistory.value[existing].lastUsed = now
+  } else {
+    saveDirHistory.value.unshift({ path, lastUsed: now })
+  }
+  if (saveDirHistory.value.length > 100) {
+    saveDirHistory.value = saveDirHistory.value.slice(0, 100)
+  }
+  saveSettings()
+}
+
+// selectHistory 从历史记录选择目录
+function selectHistory(path) {
+  serverDir.value = path
+  showHistory.value = false
+  addToHistory(path)
+}
+
+// formatDate 格式化日期显示
+function formatDate(isoString) {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
 // startServer 启动文件接收服务器
@@ -134,6 +190,7 @@ async function browseSaveDir() {
     const path = await invoke('open_dir_dialog', { dir: serverDir.value })
     if (path) {
       serverDir.value = path
+      addToHistory(path)
       if (serverRunning.value) {
         addLog('Directory changed, restarting server...', 'info')
         await stopServer()
@@ -272,9 +329,18 @@ function formatSize(bytes) {
 // canSend 计算属性：是否可以发送文件
 const canSend = computed(() => !!selectedPeer.value && selectedItems.value.length > 0 && !sending.value)
 
+// closeHistoryDropdown 关闭历史记录下拉菜单
+function closeHistoryDropdown(e) {
+  if (!e.target.closest('.relative')) {
+    showHistory.value = false
+  }
+}
+
 // onMounted 组件挂载时初始化事件监听
 onMounted(async () => {
+  loadSettings()
   listIPs()
+  document.addEventListener('click', closeHistoryDropdown)
   unlisteners.push(
     await listen('transfer-progress', (e) => handleProgress(e.payload)),
     await listen('transfer-error', (e) => handleTransferError(e.payload)),
@@ -291,6 +357,7 @@ onMounted(async () => {
 // onUnmounted 组件卸载时清理事件监听
 onUnmounted(() => {
   unlisteners.forEach(fn => fn())
+  document.removeEventListener('click', closeHistoryDropdown)
 })
 </script>
 
@@ -337,13 +404,23 @@ onUnmounted(() => {
                 placeholder="Port"
                 :disabled="serverRunning"
               />
-              <div class="flex gap-1 flex-1">
+              <div class="flex gap-1 flex-1 relative">
                 <input
                   v-model="serverDir"
                   type="text"
                   class="input flex-1"
                   placeholder="Receive directory"
+                  @change="saveSettings"
                 />
+                <button
+                  @click="showHistory = !showHistory"
+                  class="btn-secondary px-2"
+                  title="History"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
                 <button
                   @click="browseSaveDir"
                   class="btn-secondary px-2"
@@ -353,6 +430,24 @@ onUnmounted(() => {
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                   </svg>
                 </button>
+                <!-- 历史记录下拉菜单 -->
+                <div
+                  v-if="showHistory"
+                  class="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                >
+                  <div
+                    v-for="item in saveDirHistory"
+                    :key="item.path"
+                    @click="selectHistory(item.path)"
+                    class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
+                  >
+                    <div class="truncate text-gray-800">{{ item.path }}</div>
+                    <div class="text-xs text-gray-400">{{ formatDate(item.lastUsed) }}</div>
+                  </div>
+                  <div v-if="saveDirHistory.length === 0" class="px-3 py-2 text-gray-400 text-sm italic">
+                    No history
+                  </div>
+                </div>
               </div>
             </div>
             <div class="flex gap-2">

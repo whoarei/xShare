@@ -4,6 +4,7 @@ use tauri::Emitter;
 use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 use tauri::Manager;
+use tauri_plugin_store::StoreExt;
 
 // 服务器状态，存储Go引擎进程信息
 struct ServerState {
@@ -291,6 +292,39 @@ async fn open_dir_dialog(app: tauri::AppHandle, dir: Option<String>) -> Result<O
     Ok(path.map(|p| p.to_string()))
 }
 
+// load_settings 加载应用设置（保存目录及历史记录）
+#[tauri::command]
+async fn load_settings(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    
+    let save_dir = store.get("saveDir")
+        .and_then(|v| v.as_str().map(String::from))
+        .unwrap_or_else(|| "./received".to_string());
+    
+    let history: Vec<serde_json::Value> = store.get("saveDirHistory")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_else(Vec::new);
+    
+    Ok(serde_json::json!({
+        "saveDir": save_dir,
+        "saveDirHistory": history
+    }))
+}
+
+// save_settings 保存应用设置（保存目录及历史记录）
+#[tauri::command]
+async fn save_settings(
+    app: tauri::AppHandle,
+    save_dir: String,
+    history: Vec<serde_json::Value>,
+) -> Result<(), String> {
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    store.set("saveDir", serde_json::Value::String(save_dir));
+    store.set("saveDirHistory", serde_json::Value::Array(history));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // run 初始化并运行Tauri应用
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -298,6 +332,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
@@ -316,6 +351,8 @@ pub fn run() {
             open_file_dialog,
             open_dir_dialog,
             list_ips,
+            load_settings,
+            save_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
