@@ -7,7 +7,31 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.4.2] - 2026-05-29
+
+
+### ✅ 测试 (Tests)
+
+
+- **updater:** Add comprehensive checkForUpdate unit tests — *libb*
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **updater:** Expose checking ref from UpdateChecker component — *libb*
+- **updater:** Add timeout and better error messages for update check — *libb*
+- **updater:** Enable system-proxy feature for reqwest — *libb*
+- **updater:** Correct endpoint URL and improve error messages — *libb*
+
+
 ## [0.4.1] - 2026-05-29
+
+
+### Release
+
+
+- V0.4.1 — *libb*
 
 
 ### 🐛 修复 (Bug Fixes)
