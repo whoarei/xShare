@@ -7,7 +7,23 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.5.1] - 2026-05-29
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **updater:** Expose newVersion from UpdateChecker component — *libb*
+- **updater:** Expose installAndRestart method from UpdateChecker — *libb*
+
+
 ## [0.5.0] - 2026-05-29
+
+
+### Release
+
+
+- V0.5.0 — *libb*
 
 
 ### ✨ 新功能 (Features)
