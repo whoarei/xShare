@@ -410,6 +410,7 @@ onUnmounted(() => {
                   type="text"
                   class="input flex-1"
                   placeholder="Receive directory"
+                  :title="serverDir"
                   @change="saveSettings"
                 />
                 <button
