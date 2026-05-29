@@ -7,7 +7,23 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.4.1] - 2026-05-29
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **updater:** Add error handling and user feedback for update check — *libb*
+- **updater:** Make error/no-update messages clickable to retry — *libb*
+
+
 ## [0.4.0] - 2026-05-29
+
+
+### Release
+
+
+- V0.4.0 — *libb*
 
 
 ### ✨ 新功能 (Features)
