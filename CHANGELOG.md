@@ -7,7 +7,22 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.5.0] - 2026-05-29
+
+
+### ✨ 新功能 (Features)
+
+
+- **tray:** Add system tray icon with minimize-to-tray support — *libb*
+
+
 ## [0.4.2] - 2026-05-29
+
+
+### Release
+
+
+- V0.4.2 — *libb*
 
 
 ### ✅ 测试 (Tests)
