@@ -64,6 +64,7 @@ defineExpose({
   checkForUpdate,
   updateAvailable,
   downloaded,
+  checking,
   error,
   noUpdate
 })

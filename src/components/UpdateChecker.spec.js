@@ -49,6 +49,21 @@ describe('UpdateChecker.vue', () => {
       expect(wrapper.vm.downloaded).toBe(false)
     })
 
+    it('exposes reactive checking', () => {
+      const wrapper = factory()
+      expect(wrapper.vm.checking).toBe(false)
+    })
+
+    it('exposes reactive error', () => {
+      const wrapper = factory()
+      expect(wrapper.vm.error).toBe('')
+    })
+
+    it('exposes reactive noUpdate', () => {
+      const wrapper = factory()
+      expect(wrapper.vm.noUpdate).toBe(false)
+    })
+
     it('exposes checkForUpdate method', () => {
       const wrapper = factory()
       expect(typeof wrapper.vm.checkForUpdate).toBe('function')
