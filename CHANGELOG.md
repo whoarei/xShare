@@ -7,7 +7,24 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.4.0] - 2026-05-29
+
+
+### ✨ 新功能 (Features)
+
+
+- **settings:** Add save directory persistence and history — *libb*
+- **ui:** Show full save directory path on hover tooltip — *libb*
+- **updater:** Integrate tauri-plugin-updater for auto-update support — *libb*
+
+
 ## [0.3.0] - 2026-05-29
+
+
+### Release
+
+
+- V0.3.0 — *libb*
 
 
 ### ✨ 新功能 (Features)
