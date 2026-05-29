@@ -11,10 +11,12 @@ import FileSelector from './components/FileSelector.vue'
 import TransferProgress from './components/TransferProgress.vue'
 import About from './components/About.vue'
 import Changelog from './components/Changelog.vue'
+import UpdateChecker from './components/UpdateChecker.vue'
 
 // 关于页面状态
 const showAbout = ref(false)
 const showChangelog = ref(false)
+const updateChecker = ref(null)
 
 // 服务器状态
 const serverRunning = ref(false)
@@ -25,6 +27,8 @@ const serverOutput = ref([])
 // 保存目录历史记录
 const saveDirHistory = ref([])
 const showHistory = ref(false)
+const historyHovered = ref(false)
+let historyTimer = null
 
 // 网络接口配置
 const networkInterfaces = ref([])
@@ -101,6 +105,42 @@ function selectHistory(path) {
   serverDir.value = path
   showHistory.value = false
   addToHistory(path)
+}
+
+// showHistoryWithTimer 显示历史记录并启动自动隐藏定时器
+function showHistoryWithTimer() {
+  showHistory.value = true
+  startHideTimer()
+}
+
+// startHideTimer 启动历史记录隐藏定时器
+function startHideTimer() {
+  cancelHideTimer()
+  historyTimer = setTimeout(() => {
+    if (!historyHovered.value) {
+      showHistory.value = false
+    }
+  }, 2000)
+}
+
+// cancelHideTimer 取消历史记录隐藏定时器
+function cancelHideTimer() {
+  if (historyTimer) {
+    clearTimeout(historyTimer)
+    historyTimer = null
+  }
+}
+
+// onHistoryMouseEnter 鼠标移入历史记录列表
+function onHistoryMouseEnter() {
+  historyHovered.value = true
+  cancelHideTimer()
+}
+
+// onHistoryMouseLeave 鼠标移出历史记录列表
+function onHistoryMouseLeave() {
+  historyHovered.value = false
+  startHideTimer()
 }
 
 // formatDate 格式化日期显示
@@ -329,18 +369,11 @@ function formatSize(bytes) {
 // canSend 计算属性：是否可以发送文件
 const canSend = computed(() => !!selectedPeer.value && selectedItems.value.length > 0 && !sending.value)
 
-// closeHistoryDropdown 关闭历史记录下拉菜单
-function closeHistoryDropdown(e) {
-  if (!e.target.closest('.relative')) {
-    showHistory.value = false
-  }
-}
-
 // onMounted 组件挂载时初始化事件监听
 onMounted(async () => {
   loadSettings()
   listIPs()
-  document.addEventListener('click', closeHistoryDropdown)
+  updateChecker.value?.checkForUpdate(true)
   unlisteners.push(
     await listen('transfer-progress', (e) => handleProgress(e.payload)),
     await listen('transfer-error', (e) => handleTransferError(e.payload)),
@@ -357,11 +390,12 @@ onMounted(async () => {
 // onUnmounted 组件卸载时清理事件监听
 onUnmounted(() => {
   unlisteners.forEach(fn => fn())
-  document.removeEventListener('click', closeHistoryDropdown)
+  cancelHideTimer()
 })
 </script>
 
 <template>
+  <UpdateChecker ref="updateChecker">
   <div class="flex flex-col h-screen bg-gray-50">
     <!-- Header -->
     <header class="flex items-center justify-between px-6 py-3 bg-white border-b border-gray-200 shadow-sm">
@@ -372,7 +406,10 @@ onUnmounted(() => {
           </div>
           <h1 class="text-xl font-bold text-gray-800">xShare</h1>
         </div>
-        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded">v{{ appVersion }}</span>
+        <span class="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded flex items-center gap-1.5">
+          v{{ appVersion }}
+          <span v-if="updateChecker?.downloaded" class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+        </span>
       </div>
       <div class="flex items-center gap-4">
         <button @click="showAbout = true" class="text-sm text-gray-500 hover:text-gray-700 transition-colors">关于</button>
@@ -412,16 +449,9 @@ onUnmounted(() => {
                   placeholder="Receive directory"
                   :title="serverDir"
                   @change="saveSettings"
+                  @focus="showHistoryWithTimer"
+                  @blur="showHistory = false"
                 />
-                <button
-                  @click="showHistory = !showHistory"
-                  class="btn-secondary px-2"
-                  title="History"
-                >
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
                 <button
                   @click="browseSaveDir"
                   class="btn-secondary px-2"
@@ -435,11 +465,13 @@ onUnmounted(() => {
                 <div
                   v-if="showHistory"
                   class="absolute top-full left-0 right-0 z-10 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                  @mouseenter="onHistoryMouseEnter"
+                  @mouseleave="onHistoryMouseLeave"
                 >
                   <div
                     v-for="item in saveDirHistory"
                     :key="item.path"
-                    @click="selectHistory(item.path)"
+                    @mousedown.prevent="selectHistory(item.path)"
                     class="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b border-gray-100 last:border-b-0"
                   >
                     <div class="truncate text-gray-800">{{ item.path }}</div>
@@ -552,6 +584,17 @@ onUnmounted(() => {
       </main>
     </div>
   </div>
-  <About :visible="showAbout" @close="showAbout = false" @show-changelog="showAbout = false; showChangelog = true" />
+  <About
+    :visible="showAbout"
+    :update-downloaded="updateChecker?.downloaded ?? false"
+    :update-downloading="updateChecker?.downloading ?? false"
+    :update-checking="updateChecker?.checking ?? false"
+    :new-version="updateChecker?.newVersion ?? ''"
+    @close="showAbout = false"
+    @show-changelog="showAbout = false; showChangelog = true"
+    @check-update="updateChecker?.checkForUpdate(false)"
+    @install-update="updateChecker?.installAndRestart()"
+  />
   <Changelog :visible="showChangelog" @close="showChangelog = false" />
+  </UpdateChecker>
 </template>

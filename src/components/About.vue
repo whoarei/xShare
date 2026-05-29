@@ -3,10 +3,26 @@ defineProps({
   visible: {
     type: Boolean,
     default: false
+  },
+  updateDownloaded: {
+    type: Boolean,
+    default: false
+  },
+  updateDownloading: {
+    type: Boolean,
+    default: false
+  },
+  updateChecking: {
+    type: Boolean,
+    default: false
+  },
+  newVersion: {
+    type: String,
+    default: ''
   }
 })
 
-const emit = defineEmits(['close', 'show-changelog'])
+const emit = defineEmits(['close', 'show-changelog', 'check-update', 'install-update'])
 
 const appVersion = import.meta.env.VITE_APP_VERSION || 'dev'
 
@@ -76,7 +92,22 @@ function close() {
               </div>
             </div>
             <p class="text-xs text-gray-400">Copyright © 2024 xShare Contributors</p>
-            <button @click="emit('show-changelog')" class="text-xs text-primary-600 hover:text-primary-700 mt-2 underline">查看更新日志</button>
+            <div class="mt-3 flex flex-col items-center gap-2">
+              <button @click="emit('show-changelog')" class="text-xs text-primary-600 hover:text-primary-700 underline">查看更新日志</button>
+              <div v-if="updateDownloaded" class="flex flex-col items-center gap-2">
+                <span class="text-xs text-gray-500">新版本 v{{ newVersion }} 已就绪</span>
+                <button @click="emit('install-update')" class="btn-primary text-sm px-4 py-1.5">安装并重启</button>
+              </div>
+              <div v-else-if="updateDownloading" class="flex items-center gap-2 text-xs text-gray-500">
+                <div class="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary-600"></div>
+                正在下载新版本...
+              </div>
+              <div v-else-if="updateChecking" class="flex items-center gap-2 text-xs text-gray-500">
+                <div class="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary-600"></div>
+                检查更新中...
+              </div>
+              <button v-else @click="emit('check-update')" class="text-xs text-gray-500 hover:text-primary-600 transition-colors">检查更新</button>
+            </div>
           </div>
           <div class="border-t border-gray-100 px-6 py-4">
             <button @click="close" class="btn-primary w-full">关闭</button>

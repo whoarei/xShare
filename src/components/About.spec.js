@@ -8,6 +8,10 @@ function factory(props = {}) {
   return mount(About, {
     props: {
       visible: false,
+      updateDownloaded: false,
+      updateDownloading: false,
+      updateChecking: false,
+      newVersion: '',
       ...props,
     },
     global: {
@@ -87,6 +91,55 @@ describe('About.vue', () => {
       const overlay = wrapper.find('.fixed.inset-0')
       await overlay.trigger('click')
       expect(wrapper.emitted('close')).toBeTruthy()
+    })
+  })
+
+  describe('Update controls', () => {
+    it('shows check update button by default', () => {
+      const wrapper = factory({ visible: true })
+      expect(wrapper.text()).toContain('检查更新')
+    })
+
+    it('emits check-update when check button is clicked', async () => {
+      const wrapper = factory({ visible: true })
+      const buttons = wrapper.findAll('button')
+      const checkBtn = buttons.find(b => b.text() === '检查更新')
+      await checkBtn.trigger('click')
+      expect(wrapper.emitted('check-update')).toBeTruthy()
+    })
+
+    it('shows checking state when updateChecking is true', () => {
+      const wrapper = factory({ visible: true, updateChecking: true })
+      expect(wrapper.text()).toContain('检查更新中...')
+      const buttons = wrapper.findAll('button')
+      const checkBtn = buttons.find(b => b.text() === '检查更新')
+      expect(checkBtn).toBeUndefined()
+    })
+
+    it('shows downloading state when updateDownloading is true', () => {
+      const wrapper = factory({ visible: true, updateDownloading: true })
+      expect(wrapper.text()).toContain('正在下载新版本...')
+    })
+
+    it('shows install button when updateDownloaded is true', () => {
+      const wrapper = factory({ visible: true, updateDownloaded: true, newVersion: '1.0.0' })
+      expect(wrapper.text()).toContain('新版本 v1.0.0 已就绪')
+      expect(wrapper.text()).toContain('安装并重启')
+    })
+
+    it('emits install-update when install button is clicked', async () => {
+      const wrapper = factory({ visible: true, updateDownloaded: true, newVersion: '1.0.0' })
+      const buttons = wrapper.findAll('button')
+      const installBtn = buttons.find(b => b.text() === '安装并重启')
+      await installBtn.trigger('click')
+      expect(wrapper.emitted('install-update')).toBeTruthy()
+    })
+
+    it('does not show check button when downloaded', () => {
+      const wrapper = factory({ visible: true, updateDownloaded: true })
+      const buttons = wrapper.findAll('button')
+      const checkBtn = buttons.find(b => b.text() === '检查更新')
+      expect(checkBtn).toBeUndefined()
     })
   })
 
