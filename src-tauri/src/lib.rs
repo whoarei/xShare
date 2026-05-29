@@ -5,6 +5,8 @@ use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::ShellExt;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent};
 
 // 服务器状态，存储Go引擎进程信息
 struct ServerState {
@@ -337,12 +339,82 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
                 let _ = window.set_focus();
             }
         }))
         .manage(ServerState {
             child: Mutex::new(None),
             port: Mutex::new(9527),
+        })
+        .setup(|app| {
+            // 创建托盘菜单项
+            let show_i = MenuItem::with_id(app, "show", "显示主界面", true, None::<&str>)?;
+            let about_i = MenuItem::with_id(app, "about", "关于", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_i, &about_i, &quit_i])?;
+
+            // 创建系统托盘图标
+            let _tray = TrayIconBuilder::with_id("main")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "about" => {
+                        // 通过事件通知前端显示关于对话框
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.emit("show-about", ());
+                        }
+                    }
+                    "quit" => {
+                        // 移除托盘图标
+                        app.remove_tray_by_id("main");
+                        // 关闭所有窗口
+                        for (_, window) in app.webview_windows() {
+                            let _ = window.close();
+                        }
+                        // 执行清理并退出
+                        app.cleanup_before_exit();
+                        std::process::exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // 拦截窗口关闭和最小化事件，隐藏到托盘
+            if let Some(window) = app.get_webview_window("main") {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_clone.hide();
+                    }
+                });
+            }
+
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             start_server,

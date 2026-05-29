@@ -383,6 +383,9 @@ onMounted(async () => {
     await listen('server-terminated', () => {
       serverRunning.value = false
       addLog('Server process terminated', 'warn')
+    }),
+    await listen('show-about', () => {
+      showAbout.value = true
     })
   )
 })

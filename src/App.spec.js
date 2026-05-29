@@ -1099,7 +1099,7 @@ describe('App.vue', () => {
   })
 
   describe('Lifecycle', () => {
-    it('registers 6 event listeners on mount', async () => {
+    it('registers 7 event listeners on mount', async () => {
       await mountApp()
 
       expect(listeners['transfer-progress']).toBeDefined()
@@ -1108,13 +1108,14 @@ describe('App.vue', () => {
       expect(listeners['server-event']).toBeDefined()
       expect(listeners['server-error']).toBeDefined()
       expect(listeners['server-terminated']).toBeDefined()
+      expect(listeners['show-about']).toBeDefined()
     })
 
     it('calls unlisten functions on unmount', async () => {
       const wrapper = await mountApp()
       wrapper.unmount()
 
-      expect(capturedUnlisteners.length).toBe(6)
+      expect(capturedUnlisteners.length).toBe(7)
       expect(Object.keys(listeners).length).toBe(0)
     })
   })
