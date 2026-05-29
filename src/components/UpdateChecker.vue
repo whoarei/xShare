@@ -9,11 +9,15 @@ const downloaded = ref(false)
 const newVersion = ref('')
 const updateBody = ref('')
 const checking = ref(false)
+const error = ref('')
+const noUpdate = ref(false)
 let updateInstance = null
 
 async function checkForUpdate(silent = true) {
   if (checking.value || downloading.value) return
   checking.value = true
+  error.value = ''
+  noUpdate.value = false
   try {
     const update = await check()
     if (update) {
@@ -27,11 +31,11 @@ async function checkForUpdate(silent = true) {
         downloading.value = false
         downloaded.value = true
       }
-    } else if (!silent) {
-      updateAvailable.value = false
+    } else {
+      noUpdate.value = true
     }
   } catch (e) {
-    if (!silent) throw e
+    error.value = e?.message || String(e) || '检查更新失败'
   } finally {
     checking.value = false
   }
@@ -39,11 +43,7 @@ async function checkForUpdate(silent = true) {
 
 async function installAndRestart() {
   if (!updateInstance) return
-  try {
-    await updateInstance.install()
-  } catch (e) {
-    throw e
-  }
+  await updateInstance.install()
   await relaunch()
 }
 
@@ -54,6 +54,8 @@ provide('updateChecker', {
   newVersion,
   updateBody,
   checking,
+  error,
+  noUpdate,
   checkForUpdate,
   installAndRestart
 })
@@ -61,7 +63,9 @@ provide('updateChecker', {
 defineExpose({
   checkForUpdate,
   updateAvailable,
-  downloaded
+  downloaded,
+  error,
+  noUpdate
 })
 </script>
 

@@ -12,6 +12,8 @@ function factory(props = {}) {
       updateDownloading: false,
       updateChecking: false,
       newVersion: '',
+      updateError: '',
+      noUpdate: false,
       ...props,
     },
     global: {
@@ -140,6 +142,29 @@ describe('About.vue', () => {
       const buttons = wrapper.findAll('button')
       const checkBtn = buttons.find(b => b.text() === '检查更新')
       expect(checkBtn).toBeUndefined()
+    })
+
+    it('shows error message when updateError is set', () => {
+      const wrapper = factory({ visible: true, updateError: 'network error' })
+      expect(wrapper.text()).toContain('检查更新失败，请稍后再试')
+      const buttons = wrapper.findAll('button')
+      const checkBtn = buttons.find(b => b.text() === '检查更新')
+      expect(checkBtn).toBeUndefined()
+    })
+
+    it('shows no update message when noUpdate is true', () => {
+      const wrapper = factory({ visible: true, noUpdate: true })
+      expect(wrapper.text()).toContain('已是最新版本')
+      const buttons = wrapper.findAll('button')
+      const checkBtn = buttons.find(b => b.text() === '检查更新')
+      expect(checkBtn).toBeUndefined()
+    })
+
+    it('shows check button again after error is cleared', async () => {
+      const wrapper = factory({ visible: true, updateError: 'error' })
+      expect(wrapper.text()).toContain('检查更新失败')
+      await wrapper.setProps({ updateError: '' })
+      expect(wrapper.text()).toContain('检查更新')
     })
   })
 

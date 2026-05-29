@@ -590,6 +590,8 @@ onUnmounted(() => {
     :update-downloading="updateChecker?.downloading ?? false"
     :update-checking="updateChecker?.checking ?? false"
     :new-version="updateChecker?.newVersion ?? ''"
+    :update-error="updateChecker?.error ?? ''"
+    :no-update="updateChecker?.noUpdate ?? false"
     @close="showAbout = false"
     @show-changelog="showAbout = false; showChangelog = true"
     @check-update="updateChecker?.checkForUpdate(false)"
