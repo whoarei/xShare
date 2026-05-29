@@ -114,12 +114,12 @@ function close() {
                 <div class="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary-600"></div>
                 检查更新中...
               </div>
-              <div v-else-if="updateError" class="text-xs text-red-500">
+              <button v-else-if="updateError" @click="emit('check-update')" class="text-xs text-red-500 hover:text-red-600 transition-colors">
                 检查更新失败，请稍后再试
-              </div>
-              <div v-else-if="noUpdate" class="text-xs text-emerald-600">
+              </button>
+              <button v-else-if="noUpdate" @click="emit('check-update')" class="text-xs text-emerald-600 hover:text-emerald-700 transition-colors">
                 已是最新版本
-              </div>
+              </button>
               <button v-else @click="emit('check-update')" class="text-xs text-gray-500 hover:text-primary-600 transition-colors">检查更新</button>
             </div>
           </div>

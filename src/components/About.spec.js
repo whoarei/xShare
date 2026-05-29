@@ -147,24 +147,25 @@ describe('About.vue', () => {
     it('shows error message when updateError is set', () => {
       const wrapper = factory({ visible: true, updateError: 'network error' })
       expect(wrapper.text()).toContain('检查更新失败，请稍后再试')
-      const buttons = wrapper.findAll('button')
-      const checkBtn = buttons.find(b => b.text() === '检查更新')
-      expect(checkBtn).toBeUndefined()
+    })
+
+    it('emits check-update when error message is clicked', async () => {
+      const wrapper = factory({ visible: true, updateError: 'error' })
+      const retryBtn = wrapper.findAll('button').find(b => b.text().includes('检查更新失败'))
+      await retryBtn.trigger('click')
+      expect(wrapper.emitted('check-update')).toBeTruthy()
     })
 
     it('shows no update message when noUpdate is true', () => {
       const wrapper = factory({ visible: true, noUpdate: true })
       expect(wrapper.text()).toContain('已是最新版本')
-      const buttons = wrapper.findAll('button')
-      const checkBtn = buttons.find(b => b.text() === '检查更新')
-      expect(checkBtn).toBeUndefined()
     })
 
-    it('shows check button again after error is cleared', async () => {
-      const wrapper = factory({ visible: true, updateError: 'error' })
-      expect(wrapper.text()).toContain('检查更新失败')
-      await wrapper.setProps({ updateError: '' })
-      expect(wrapper.text()).toContain('检查更新')
+    it('emits check-update when no-update message is clicked', async () => {
+      const wrapper = factory({ visible: true, noUpdate: true })
+      const retryBtn = wrapper.findAll('button').find(b => b.text().includes('已是最新版本'))
+      await retryBtn.trigger('click')
+      expect(wrapper.emitted('check-update')).toBeTruthy()
     })
   })
 
