@@ -4,9 +4,17 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"net"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"go-engine/pkg/discovery"
 )
 
 // TestGetArg 测试命令行参数提取函数
@@ -91,6 +99,33 @@ func TestGetArg(t *testing.T) {
 			defVal:   "",
 			expected: "",
 		},
+		{
+			// 测试场景：nil参数切片
+			// 验证点：传入nil不会panic，应返回默认值
+			name:     "nil args returns default",
+			args:     nil,
+			key:      "port",
+			defVal:   "9527",
+			expected: "9527",
+		},
+		{
+			// 测试场景：存在多个匹配的参数
+			// 验证点：返回第一个匹配项（遍历顺序）
+			name:     "multiple matches returns first",
+			args:     []string{"--port=8080", "--port=9527"},
+			key:      "port",
+			defVal:   "",
+			expected: "8080",
+		},
+		{
+			// 测试场景：参数值中包含等号
+			// 验证点：从第一个=处切分，值中保留后续的等号
+			name:     "value contains equals sign",
+			args:     []string{"--key=a=b=c"},
+			key:      "key",
+			defVal:   "",
+			expected: "a=b=c",
+		},
 	}
 
 	for _, tt := range tests {
@@ -158,16 +193,23 @@ func TestCmdListIPs(t *testing.T) {
 			continue
 		}
 		// 验证点：每个IP条目必须包含ip字段（IP地址）
-		if _, ok := m["ip"]; !ok {
-			t.Error("IP entry missing 'ip' field")
+		ipStr, ok := m["ip"].(string)
+		if !ok || ipStr == "" {
+			t.Error("IP entry missing or empty 'ip' field")
+		} else if net.ParseIP(ipStr) == nil {
+			t.Errorf("IP entry 'ip' is not a valid IP address: %q", ipStr)
 		}
 		// 验证点：每个IP条目必须包含iface字段（网络接口名）
-		if _, ok := m["iface"]; !ok {
-			t.Error("IP entry missing 'iface' field")
+		ifaceStr, ok := m["iface"].(string)
+		if !ok || ifaceStr == "" {
+			t.Error("IP entry missing or empty 'iface' field")
 		}
-		// 验证点：每个IP条目必须包含family字段（地址族v4/v6）
-		if _, ok := m["family"]; !ok {
+		// 验证点：每个IP条目必须包含family字段且为v4或v6
+		family, ok := m["family"].(string)
+		if !ok {
 			t.Error("IP entry missing 'family' field")
+		} else if family != "v4" && family != "v6" {
+			t.Errorf("IP entry 'family' must be 'v4' or 'v6', got %q", family)
 		}
 	}
 }
@@ -231,28 +273,390 @@ func TestCmdListIfaces(t *testing.T) {
 			continue
 		}
 		// 验证点：必须包含name字段（接口名称，如eth0）
-		if _, ok := m["name"]; !ok {
-			t.Error("interface entry missing 'name' field")
+		if _, ok := m["name"].(string); !ok {
+			t.Error("interface entry missing or non-string 'name' field")
 		}
-		// 验证点：必须包含index字段（接口索引号）
-		if _, ok := m["index"]; !ok {
-			t.Error("interface entry missing 'index' field")
+		// 验证点：必须包含index字段且为正整数
+		index, ok := m["index"].(float64)
+		if !ok {
+			t.Error("interface entry missing or non-numeric 'index' field")
+		} else if int(index) <= 0 {
+			t.Errorf("interface index must be positive, got %d", int(index))
 		}
-		// 验证点：必须包含mtu字段（最大传输单元）
-		if _, ok := m["mtu"]; !ok {
-			t.Error("interface entry missing 'mtu' field")
+		// 验证点：必须包含mtu字段且为整数（部分虚拟接口可能为-1表示未知）
+		mtu, ok := m["mtu"].(float64)
+		if !ok {
+			t.Error("interface entry missing or non-numeric 'mtu' field")
+		} else if int(mtu) < -1 {
+			t.Errorf("interface mtu invalid, got %d", int(mtu))
 		}
 		// 验证点：必须包含flags字段（接口状态标志，如up|running）
-		if _, ok := m["flags"]; !ok {
-			t.Error("interface entry missing 'flags' field")
+		if flags, ok := m["flags"].(string); !ok || flags == "" {
+			t.Error("interface entry missing or empty 'flags' field")
 		}
 		// 验证点：必须包含mac字段（物理MAC地址）
-		if _, ok := m["mac"]; !ok {
-			t.Error("interface entry missing 'mac' field")
+		if _, ok := m["mac"].(string); !ok {
+			t.Error("interface entry missing or non-string 'mac' field")
 		}
-		// 验证点：必须包含ips字段（绑定的IP地址列表）
-		if _, ok := m["ips"]; !ok {
-			t.Error("interface entry missing 'ips' field")
+		// 验证点：必须包含ips字段且为数组，每个子项需有ip/family验证
+		ipsRaw, ok := m["ips"].([]interface{})
+		if !ok {
+			t.Error("interface entry missing or non-array 'ips' field")
+			continue
 		}
+		for _, ipRaw := range ipsRaw {
+			ipMap, ok := ipRaw.(map[string]interface{})
+			if !ok {
+				t.Errorf("ips entry is not a JSON object: %v", ipRaw)
+				continue
+			}
+			if ipStr, ok := ipMap["ip"].(string); !ok || ipStr == "" {
+				t.Error("ips entry missing or empty 'ip'")
+			} else if net.ParseIP(ipStr) == nil {
+				t.Errorf("ips entry 'ip' is not a valid IP: %q", ipStr)
+			}
+			if fam, ok := ipMap["family"].(string); !ok {
+				t.Error("ips entry missing 'family'")
+			} else if fam != "v4" && fam != "v6" {
+				t.Errorf("ips entry 'family' must be 'v4' or 'v6', got %q", fam)
+			}
+		}
+	}
+}
+
+// TestPrintUsage 测试printUsage输出到stderr的内容
+// 验证包含Usage关键字和go-engine标识
+func TestPrintUsage(t *testing.T) {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	os.Stderr = w
+
+	printUsage()
+
+	w.Close()
+	os.Stderr = origStderr
+
+	buf, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("Failed to read stderr: %v", err)
+	}
+	output := string(buf)
+
+	if !strings.Contains(output, "Usage:") {
+		t.Error("printUsage output missing 'Usage:'")
+	}
+	if !strings.Contains(output, "go-engine") {
+		t.Error("printUsage output missing 'go-engine'")
+	}
+}
+
+// buildTestBinary 编译go-engine测试二进制文件，返回路径和清理函数
+func buildTestBinary(t *testing.T) (string, func()) {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "go-engine-test.exe")
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd.Dir = filepath.Join("go-engine")
+	// 从当前工作目录推断go-engine目录
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	cmd.Dir = wd
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go build failed: %v\n%s", err, out)
+	}
+	return bin, func() { os.Remove(bin) }
+}
+
+// runTestBinary 运行编译好的二进制并返回stdout、stderr和exit code
+func runTestBinary(t *testing.T, bin string, args ...string) (stdout, stderr string, exitCode int) {
+	t.Helper()
+	cmd := exec.Command(bin, args...)
+	var outBuf, errBuf strings.Builder
+	cmd.Stdout = &outBuf
+	cmd.Stderr = &errBuf
+	err := cmd.Run()
+	exitCode = 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			t.Fatalf("exec failed: %v", err)
+		}
+	}
+	return outBuf.String(), errBuf.String(), exitCode
+}
+
+// TestCmdSendErrors 测试cmdSend参数校验错误路径
+// 通过子进程方式测试，因为cmdSend会调用os.Exit(1)
+func TestCmdSendErrors(t *testing.T) {
+	bin, cleanup := buildTestBinary(t)
+	defer cleanup()
+
+	t.Run("missing --peer", func(t *testing.T) {
+		_, stderr, code := runTestBinary(t, bin, "send")
+		if code != 1 {
+			t.Errorf("expected exit code 1, got %d", code)
+		}
+		if !strings.Contains(stderr, "--peer is required") {
+			t.Errorf("stderr missing '--peer is required', got: %s", stderr)
+		}
+	})
+
+	t.Run("missing --file", func(t *testing.T) {
+		_, stderr, code := runTestBinary(t, bin, "send", "--peer=127.0.0.1:9527")
+		if code != 1 {
+			t.Errorf("expected exit code 1, got %d", code)
+		}
+		if !strings.Contains(stderr, "--file is required") {
+			t.Errorf("stderr missing '--file is required', got: %s", stderr)
+		}
+	})
+}
+
+// waitForTCPPort 轮询等待TCP端口可连接，超时则fail
+func waitForTCPPort(t *testing.T, host string, port int, timeout time.Duration) {
+	t.Helper()
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("TCP %s not ready within %v", addr, timeout)
+}
+
+// startServeForTest 在后台启动cmdServe，返回ready通道和清理函数
+// 使用t.TempDir()作为接收目录，goroutine泄漏在测试结束时由进程退出清理
+func startServeForTest(t *testing.T, port int, bindIP string) (ready chan struct{}, cleanup func()) {
+	t.Helper()
+	dir := t.TempDir()
+	args := []string{
+		fmt.Sprintf("--port=%d", port),
+		fmt.Sprintf("--dir=%s", dir),
+	}
+	if bindIP != "" {
+		args = append(args, fmt.Sprintf("--ip=%s", bindIP))
+	}
+
+	ready = make(chan struct{})
+	go func() {
+		// 简单延迟等待mDNS和TCP就绪
+		time.Sleep(100 * time.Millisecond)
+		close(ready)
+		cmdServe(args)
+	}()
+
+	// 等待TCP端口就绪（使用绑定IP或默认127.0.0.1）
+	host := "127.0.0.1"
+	if bindIP != "" {
+		host = bindIP
+	}
+	waitForTCPPort(t, host, port, 5*time.Second)
+	// 额外等待mDNS广播传播
+	time.Sleep(500 * time.Millisecond)
+
+	return ready, func() {
+		// cmdServe阻塞无法优雅关闭，依赖测试进程退出
+	}
+}
+
+// runDiscoverForTest 运行cmdDiscover并捕获stdout和stderr输出
+func runDiscoverForTest(t *testing.T, args []string) (stdout, stderr string) {
+	t.Helper()
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+	rOut, wOut, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stdout pipe: %v", err)
+	}
+	rErr, wErr, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create stderr pipe: %v", err)
+	}
+	os.Stdout = wOut
+	os.Stderr = wErr
+
+	cmdDiscover(args)
+
+	wOut.Close()
+	wErr.Close()
+	os.Stdout = origStdout
+	os.Stderr = origStderr
+
+	bufOut, err := io.ReadAll(rOut)
+	if err != nil {
+		t.Fatalf("Failed to read stdout: %v", err)
+	}
+	bufErr, err := io.ReadAll(rErr)
+	if err != nil {
+		t.Fatalf("Failed to read stderr: %v", err)
+	}
+	return string(bufOut), string(bufErr)
+}
+
+// parseDiscoverOutput 解析discover命令的JSON输出，返回peers数组
+func parseDiscoverOutput(t *testing.T, output string) []map[string]interface{} {
+	t.Helper()
+	t.Logf("raw discover output: %s", output)
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("discover output is not valid JSON: %v\nOutput: %s", err, output)
+	}
+	if typ, ok := parsed["type"].(string); !ok || typ != "peers" {
+		t.Fatalf("expected type=peers, got %v", parsed["type"])
+	}
+	peersRaw, ok := parsed["peers"].([]interface{})
+	if !ok {
+		// peers为null时返回空切片
+		return nil
+	}
+	var peers []map[string]interface{}
+	for _, raw := range peersRaw {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			t.Errorf("peer entry is not a JSON object: %v", raw)
+			continue
+		}
+		peers = append(peers, m)
+	}
+	return peers
+}
+
+// TestServeAndDiscover 基础集成测试：启动serve后通过discover发现
+// 验证mDNS注册→发现完整流程
+func TestServeAndDiscover(t *testing.T) {
+	const port = 19530
+	startServeForTest(t, port, "")
+
+	output, stderr := runDiscoverForTest(t, []string{"--timeout=3"})
+	if stderr != "" {
+		t.Logf("discover stderr: %s", stderr)
+	}
+	peers := parseDiscoverOutput(t, output)
+
+	t.Logf("Discovered %d peer(s)", len(peers))
+
+	found := false
+	for _, p := range peers {
+		pPort, _ := p["port"].(float64)
+		if int(pPort) == port {
+			found = true
+			if addr, ok := p["addr"].(string); !ok || addr == "" {
+				t.Error("discovered peer 'addr' is empty")
+			}
+			if host, ok := p["host"].(string); !ok || host == "" {
+				t.Error("discovered peer 'host' is empty")
+			}
+			if name, ok := p["name"].(string); !ok || name == "" {
+				t.Error("discovered peer 'name' is empty")
+			}
+			t.Logf("Found peer: addr=%v host=%v port=%v name=%v",
+				p["addr"], p["host"], pPort, p["name"])
+			break
+		}
+	}
+	if !found {
+		t.Errorf("peer with port %d not found among %d discovered peers", port, len(peers))
+	}
+}
+
+// TestServeAndDiscover_BindIP 绑定指定IP的集成测试
+// 自动检测可用IPv4地址，验证peer的host与绑定IP一致
+func TestServeAndDiscover_BindIP(t *testing.T) {
+	ips, err := discovery.ListIPs()
+	if err != nil {
+		t.Fatalf("ListIPs failed: %v", err)
+	}
+	var testIP string
+	for _, info := range ips {
+		t.Logf("available IP: %s (%s, %s)", info.IP, info.Iface, info.Family)
+		if info.Family == "v4" && testIP == "" {
+			testIP = info.IP
+		}
+	}
+	if testIP == "" {
+		t.Skip("no IPv4 address available for bind-IP test")
+	}
+	t.Logf("selected test IP: %s", testIP)
+
+	const port = 19531
+	startServeForTest(t, port, testIP)
+
+	output, stderr := runDiscoverForTest(t, []string{"--timeout=3"})
+	if stderr != "" {
+		t.Logf("discover stderr: %s", stderr)
+	}
+	peers := parseDiscoverOutput(t, output)
+
+	t.Logf("Discovered %d peer(s), looking for bound IP %s", len(peers), testIP)
+
+	// 验证至少有一个peer的host与绑定IP一致（mDNS可能发现多个同主机peer）
+	found := false
+	for _, p := range peers {
+		host, _ := p["host"].(string)
+		if host == testIP {
+			found = true
+			t.Logf("Found peer on bound IP: addr=%v host=%v port=%v",
+				p["addr"], p["host"], p["port"])
+			break
+		}
+	}
+	if !found {
+		t.Errorf("no peer with host %s found among %d discovered peers", testIP, len(peers))
+	}
+}
+
+// TestServeAndDiscover_Multiple 多实例集成测试
+// 同时启动2个serve，通过单次discover验证serve正常工作
+// 注意：mDNS使用os.Hostname()注册，同主机多实例会被去重，仅最后一个可见
+func TestServeAndDiscover_Multiple(t *testing.T) {
+	const port1 = 19532
+	const port2 = 19533
+
+	// 并行启动两个serve
+	go func() {
+		dir := t.TempDir()
+		cmdServe([]string{
+			fmt.Sprintf("--port=%d", port1),
+			fmt.Sprintf("--dir=%s", dir),
+		})
+	}()
+	go func() {
+		dir := t.TempDir()
+		cmdServe([]string{
+			fmt.Sprintf("--port=%d", port2),
+			fmt.Sprintf("--dir=%s", dir),
+		})
+	}()
+
+	// 等待两个端口就绪
+	waitForTCPPort(t, "127.0.0.1", port1, 5*time.Second)
+	waitForTCPPort(t, "127.0.0.1", port2, 5*time.Second)
+	time.Sleep(500 * time.Millisecond)
+
+	output, stderr := runDiscoverForTest(t, []string{"--timeout=4"})
+	if stderr != "" {
+		t.Logf("discover stderr: %s", stderr)
+	}
+	peers := parseDiscoverOutput(t, output)
+
+	t.Logf("Discovered %d peer(s)", len(peers))
+
+	// mDNS同主机多实例会被去重，验证至少发现一个peer
+	if len(peers) == 0 {
+		t.Fatal("expected at least 1 peer, got 0")
+	}
+
+	for _, p := range peers {
+		t.Logf("Found peer: addr=%v host=%v port=%v", p["addr"], p["host"], p["port"])
 	}
 }
