@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/grandcat/zeroconf"
 	"go-engine/pkg/discovery"
 	"go-engine/pkg/transfer"
 )
@@ -107,9 +108,15 @@ func cmdServe(args []string) {
 	}
 
 	bindIP := getArg(args, "ip", "")
+	instanceName := getArg(args, "instance-name", "")
 
 	// 注册mDNS服务，供其他设备发现
-	srv, err := discovery.Register(port, bindIP)
+	var srv *zeroconf.Server
+	if instanceName != "" {
+		srv, err = discovery.RegisterWithName(instanceName, port, bindIP)
+	} else {
+		srv, err = discovery.Register(port, bindIP)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, `{"type":"error","msg":"%s"}`+"\n", err.Error())
 		os.Exit(1)

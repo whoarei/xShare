@@ -148,7 +148,7 @@ func ListInterfaces() ([]InterfaceInfo, error) {
 
 	var out []InterfaceInfo
 	for _, iface := range all {
-		var ips []IPInfo
+		ips := []IPInfo{}
 		addrs, err := iface.Addrs()
 		if err == nil {
 			for _, addr := range addrs {
@@ -252,7 +252,11 @@ func collectIPs(bindIP string) []string {
 // Register 注册mDNS服务，使其他设备可以发现本机
 func Register(port int, bindIP string) (*zeroconf.Server, error) {
 	host, _ := os.Hostname()
+	return RegisterWithName(host, port, bindIP)
+}
 
+// RegisterWithName 使用指定实例名注册mDNS服务
+func RegisterWithName(instanceName string, port int, bindIP string) (*zeroconf.Server, error) {
 	ifaces, err := collectInterfaces(bindIP)
 	if err != nil {
 		return nil, err
@@ -261,11 +265,11 @@ func Register(port int, bindIP string) (*zeroconf.Server, error) {
 	ips := collectIPs(bindIP)
 
 	server, err := zeroconf.RegisterProxy(
-		host,
+		instanceName,
 		ServiceName,
 		"local.",
 		port,
-		host+".",
+		instanceName+".",
 		ips,
 		[]string{"xShare v1"},
 		ifaces,

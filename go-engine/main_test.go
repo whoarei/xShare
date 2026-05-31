@@ -438,6 +438,11 @@ func waitForTCPPort(t *testing.T, host string, port int, timeout time.Duration) 
 // 使用t.TempDir()作为接收目录，goroutine泄漏在测试结束时由进程退出清理
 func startServeForTest(t *testing.T, port int, bindIP string) (ready chan struct{}, cleanup func()) {
 	t.Helper()
+	return startServeForTestWithName(t, port, bindIP, "")
+}
+
+func startServeForTestWithName(t *testing.T, port int, bindIP string, instanceName string) (ready chan struct{}, cleanup func()) {
+	t.Helper()
 	dir := t.TempDir()
 	args := []string{
 		fmt.Sprintf("--port=%d", port),
@@ -445,6 +450,9 @@ func startServeForTest(t *testing.T, port int, bindIP string) (ready chan struct
 	}
 	if bindIP != "" {
 		args = append(args, fmt.Sprintf("--ip=%s", bindIP))
+	}
+	if instanceName != "" {
+		args = append(args, fmt.Sprintf("--instance-name=%s", instanceName))
 	}
 
 	ready = make(chan struct{})
@@ -535,7 +543,7 @@ func parseDiscoverOutput(t *testing.T, output string) []map[string]interface{} {
 // 验证mDNS注册→发现完整流程
 func TestServeAndDiscover(t *testing.T) {
 	const port = 19530
-	startServeForTest(t, port, "")
+	startServeForTestWithName(t, port, "", "test-serve-discover")
 
 	output, stderr := runDiscoverForTest(t, []string{"--timeout=3"})
 	if stderr != "" {
@@ -589,7 +597,7 @@ func TestServeAndDiscover_BindIP(t *testing.T) {
 	t.Logf("selected test IP: %s", testIP)
 
 	const port = 19531
-	startServeForTest(t, port, testIP)
+	startServeForTestWithName(t, port, testIP, "test-serve-bindip")
 
 	output, stderr := runDiscoverForTest(t, []string{"--timeout=3"})
 	if stderr != "" {
@@ -617,7 +625,7 @@ func TestServeAndDiscover_BindIP(t *testing.T) {
 
 // TestServeAndDiscover_Multiple 多实例集成测试
 // 同时启动2个serve，通过单次discover验证serve正常工作
-// 注意：mDNS使用os.Hostname()注册，同主机多实例会被去重，仅最后一个可见
+// 使用不同实例名确保mDNS服务不被去重
 func TestServeAndDiscover_Multiple(t *testing.T) {
 	const port1 = 19532
 	const port2 = 19533
@@ -628,6 +636,7 @@ func TestServeAndDiscover_Multiple(t *testing.T) {
 		cmdServe([]string{
 			fmt.Sprintf("--port=%d", port1),
 			fmt.Sprintf("--dir=%s", dir),
+			"--instance-name=test-multi-1",
 		})
 	}()
 	go func() {
@@ -635,6 +644,7 @@ func TestServeAndDiscover_Multiple(t *testing.T) {
 		cmdServe([]string{
 			fmt.Sprintf("--port=%d", port2),
 			fmt.Sprintf("--dir=%s", dir),
+			"--instance-name=test-multi-2",
 		})
 	}()
 

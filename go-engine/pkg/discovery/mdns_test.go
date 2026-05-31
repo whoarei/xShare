@@ -303,7 +303,7 @@ func TestResolveIP_InvalidFormat(t *testing.T) {
 func TestRegisterAndDiscover(t *testing.T) {
 	const testPort = 19528
 
-	server, err := Register(testPort, "")
+	server, err := RegisterWithName("test-register-discover", testPort, "")
 	if err != nil {
 		t.Fatalf("Register failed: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestRegisterWithSpecificIP(t *testing.T) {
 
 	const testPort = 19529
 
-	server, err := Register(testPort, testIP)
+	server, err := RegisterWithName("test-register-specific-ip", testPort, testIP)
 	if err != nil {
 		t.Fatalf("Register with IP %q failed: %v", testIP, err)
 	}
