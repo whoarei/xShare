@@ -7,7 +7,28 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.5.2] - 2026-05-31
+
+
+### ✅ 测试 (Tests)
+
+
+- **main:** Add tests — *libb*
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **discovery:** Create multiple peers per mDNS entry with all IPs — *libb*
+
+
 ## [0.5.1] - 2026-05-29
+
+
+### Release
+
+
+- V0.5.1 — *libb*
 
 
 ### 🐛 修复 (Bug Fixes)
