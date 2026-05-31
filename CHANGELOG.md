@@ -7,7 +7,22 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.5.4] - 2026-05-31
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **ci:** Fix flaky mDNS tests and nil slice serialization — *libb*
+
+
 ## [0.5.3] - 2026-05-31
+
+
+### Release
+
+
+- V0.5.3 — *libb*
 
 
 ### 🐛 修复 (Bug Fixes)
