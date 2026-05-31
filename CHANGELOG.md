@@ -7,7 +7,22 @@
 并且本项目遵循 [语义化版本控制](https://semver.org/lang/zh-CN/)。
 
 
+## [0.5.3] - 2026-05-31
+
+
+### 🐛 修复 (Bug Fixes)
+
+
+- **discovery test:** Increase mDNS timeout to fix flaky TestRegisterWithSpecificIP — *libb*
+
+
 ## [0.5.2] - 2026-05-31
+
+
+### Release
+
+
+- V0.5.2 — *libb*
 
 
 ### ✅ 测试 (Tests)
