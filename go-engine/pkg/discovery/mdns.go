@@ -296,18 +296,26 @@ func Discover(timeout time.Duration, bindIP string) ([]Peer, error) {
 
 	go func() {
 		for entry := range entries {
-			var addr net.IP
-			if len(entry.AddrIPv4) > 0 {
-				addr = entry.AddrIPv4[0]
-			} else if len(entry.AddrIPv6) > 0 {
-				addr = entry.AddrIPv6[0]
-			}
-			if addr != nil {
+			for _, ip := range entry.AddrIPv4 {
+				if !isValidUnicastIP(ip) {
+					continue
+				}
 				peers = append(peers, Peer{
 					Name: entry.HostName,
-					Host: addr.String(),
+					Host: ip.String(),
 					Port: entry.Port,
-					Addr: fmt.Sprintf("%s:%d", addr, entry.Port),
+					Addr: fmt.Sprintf("%s:%d", ip, entry.Port),
+				})
+			}
+			for _, ip := range entry.AddrIPv6 {
+				if !isValidUnicastIP(ip) {
+					continue
+				}
+				peers = append(peers, Peer{
+					Name: entry.HostName,
+					Host: ip.String(),
+					Port: entry.Port,
+					Addr: fmt.Sprintf("%s:%d", ip, entry.Port),
 				})
 			}
 		}
