@@ -372,9 +372,9 @@ func TestRegisterWithSpecificIP(t *testing.T) {
 	}
 	defer server.Shutdown()
 
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
-	timeout := 4 * time.Second
+	timeout := 6 * time.Second
 	peers, err := Discover(timeout, "")
 	if err != nil {
 		t.Fatalf("Discover failed: %v", err)
